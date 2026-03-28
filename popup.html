@@ -108,6 +108,52 @@
     transform: translate(-50%, -50%);
   }
 
+  /* ── Scope Toggle ── */
+  .scope-toggle {
+    display: flex;
+    gap: 6px;
+  }
+  .scope-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .scope-btn:hover {
+    color: var(--text);
+    border-color: rgba(255,255,255,0.2);
+  }
+  .scope-btn.selected {
+    color: var(--text);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  /* Scope icon in snippet row */
+  .scope-icon {
+    flex-shrink: 0;
+    cursor: pointer;
+    color: var(--text-dim);
+    opacity: 0.5;
+    transition: opacity 0.15s, color 0.15s;
+    margin-top: 1px;
+  }
+  .scope-icon:hover {
+    opacity: 1;
+    color: var(--accent);
+  }
+  .scope-icon.site-scope {
+    opacity: 0.8;
+    color: var(--text);
+  }
+
   /* ── Input Row ── */
   .input-row {
     display: flex;
@@ -344,6 +390,27 @@
 <div class="default-color-row">
   <span class="label">Default color:</span>
   <div class="palette" id="defaultPalette"></div>
+</div>
+
+<div class="default-color-row">
+  <span class="label">Scope:</span>
+  <div class="scope-toggle" id="scopeToggle">
+    <button class="scope-btn selected" data-scope="page" title="This page only">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      Page
+    </button>
+    <button class="scope-btn" data-scope="site" title="All pages on this site">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+      </svg>
+      Site
+    </button>
+  </div>
 </div>
 
 <div class="input-row">

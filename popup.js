@@ -14,6 +14,7 @@ const COLORS = [
 ];
 
 const DEFAULT_COLOR = "yellow";
+const DEFAULT_SCOPE = "page";
 
 // ── DOM refs ──
 const listEl = document.getElementById("list");
@@ -27,11 +28,15 @@ const toggleNotesBtn = document.getElementById("toggleNotesBtn");
 const pageDomainEl = document.getElementById("pageDomain");
 const pagePathEl = document.getElementById("pagePath");
 const defaultPaletteEl = document.getElementById("defaultPalette");
+const scopeToggleEl = document.getElementById("scopeToggle");
 
-let currentKey = "";
-let snippets = [];        // Array of { text: string, color: string (color id) }
+let currentKey = "";      // origin + pathname (page-level key)
+let currentOrigin = "";   // origin only (site-level key)
+let pageSnippets = [];    // snippets scoped to this page
+let siteSnippets = [];    // snippets scoped to this site (origin)
 let defaultColor = DEFAULT_COLOR;
-let openPopoverIndex = -1; // which snippet has its color picker open
+let defaultScope = DEFAULT_SCOPE;
+let openPopoverIndex = -1;
 let showNotes = false;
 
 // ── Helpers ──
@@ -63,17 +68,44 @@ function urlKey(urlStr) {
   }
 }
 
+function originKey(urlStr) {
+  try {
+    return new URL(urlStr).origin;
+  } catch {
+    return urlStr;
+  }
+}
+
+/** Build a merged display list with _scope tags */
+function buildDisplayList() {
+  const list = [];
+  pageSnippets.forEach((s, i) => list.push({ ...s, _scope: "page", _srcIndex: i }));
+  siteSnippets.forEach((s, i) => list.push({ ...s, _scope: "site", _srcIndex: i }));
+  // Sort by createdAt descending (newest first) — fallback to insertion order
+  list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return list;
+}
+
 // ── Storage ──
 
 function save(callback) {
-  chrome.storage.local.get(["pages", "defaultColor"], (result) => {
+  chrome.storage.local.get(["pages", "sites"], (result) => {
     const pages = result.pages || {};
-    if (snippets.length === 0) {
+    const sites = result.sites || {};
+
+    if (pageSnippets.length === 0) {
       delete pages[currentKey];
     } else {
-      pages[currentKey] = { snippets };
+      pages[currentKey] = { snippets: pageSnippets };
     }
-    chrome.storage.local.set({ pages, defaultColor }, () => {
+
+    if (siteSnippets.length === 0) {
+      delete sites[currentOrigin];
+    } else {
+      sites[currentOrigin] = { snippets: siteSnippets };
+    }
+
+    chrome.storage.local.set({ pages, sites, defaultColor, defaultScope }, () => {
       notifyContentScript();
       if (callback) callback();
     });
@@ -99,12 +131,37 @@ function renderDefaultPalette() {
     sw.title = c.label;
     sw.addEventListener("click", () => {
       defaultColor = c.id;
-      // Save the global default (not page-specific)
       chrome.storage.local.set({ defaultColor });
       renderDefaultPalette();
     });
     defaultPaletteEl.appendChild(sw);
   });
+}
+
+// ── Scope toggle ──
+
+function renderScopeToggle() {
+  scopeToggleEl.querySelectorAll(".scope-btn").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.scope === defaultScope);
+  });
+}
+
+scopeToggleEl.addEventListener("click", (e) => {
+  const btn = e.target.closest(".scope-btn");
+  if (!btn) return;
+  defaultScope = btn.dataset.scope;
+  chrome.storage.local.set({ defaultScope });
+  renderScopeToggle();
+});
+
+// ── SVG helpers for scope icons in snippet rows ──
+
+function pageSvg() {
+  return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+}
+
+function globeSvg() {
+  return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>';
 }
 
 // ── Snippet list ──
@@ -118,7 +175,9 @@ function render() {
   closeAllPopovers();
   listEl.innerHTML = "";
 
-  if (snippets.length === 0) {
+  const displayList = buildDisplayList();
+
+  if (displayList.length === 0) {
     listEl.innerHTML = `
       <div class="empty">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -131,7 +190,7 @@ function render() {
     return;
   }
 
-  snippets.forEach((snippet, i) => {
+  displayList.forEach((snippet, i) => {
     const row = document.createElement("div");
     row.className = "snippet";
 
@@ -145,10 +204,20 @@ function render() {
     dot.title = "Change color";
     dot.addEventListener("click", (e) => {
       e.stopPropagation();
-      toggleColorPicker(i, dotWrapper, snippet.color);
+      toggleColorPicker(i, dotWrapper, snippet);
     });
 
     dotWrapper.appendChild(dot);
+
+    // Scope icon
+    const scopeEl = document.createElement("span");
+    scopeEl.className = "scope-icon" + (snippet._scope === "site" ? " site-scope" : "");
+    scopeEl.innerHTML = snippet._scope === "site" ? globeSvg() : pageSvg();
+    scopeEl.title = snippet._scope === "site" ? "Site-wide — click for page only" : "Page only — click for site-wide";
+    scopeEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSnippetScope(snippet);
+    });
 
     const txtWrapper = document.createElement("div");
     txtWrapper.className = "snippet-text";
@@ -172,7 +241,7 @@ function render() {
       noteEl.textContent = snippet.note;
       noteEl.addEventListener("click", (e) => {
         e.stopPropagation();
-        showNoteEditor(txtWrapper, noteEl, i, snippet.note);
+        showNoteEditor(txtWrapper, noteEl, snippet, snippet.note);
       });
       txtWrapper.appendChild(noteEl);
     } else {
@@ -181,7 +250,7 @@ function render() {
       addNote.textContent = "+ Add note";
       addNote.addEventListener("click", (e) => {
         e.stopPropagation();
-        showNoteEditor(txtWrapper, addNote, i, "");
+        showNoteEditor(txtWrapper, addNote, snippet, "");
       });
       txtWrapper.appendChild(addNote);
     }
@@ -190,38 +259,41 @@ function render() {
     btn.className = "remove";
     btn.innerHTML = "&#10005;";
     btn.title = "Remove snippet";
-    btn.addEventListener("click", () => removeSnippet(i));
+    btn.addEventListener("click", () => removeSnippet(snippet));
 
     row.appendChild(dotWrapper);
+    row.appendChild(scopeEl);
     row.appendChild(txtWrapper);
     row.appendChild(btn);
     listEl.appendChild(row);
   });
 
   footerEl.style.display = "flex";
-  countEl.textContent = `${snippets.length} snippet${snippets.length !== 1 ? "s" : ""}`;
+  const total = displayList.length;
+  countEl.textContent = `${total} snippet${total !== 1 ? "s" : ""}`;
 }
 
-function toggleColorPicker(index, parentEl, currentColorId) {
-  // If already open for this index, close it
-  if (openPopoverIndex === index) {
+function toggleColorPicker(displayIndex, parentEl, snippet) {
+  if (openPopoverIndex === displayIndex) {
     closeAllPopovers();
     return;
   }
   closeAllPopovers();
-  openPopoverIndex = index;
+  openPopoverIndex = displayIndex;
 
   const popover = document.createElement("div");
   popover.className = "color-picker-popover";
 
   COLORS.forEach((c) => {
     const sw = document.createElement("span");
-    sw.className = "swatch" + (currentColorId === c.id ? " active" : "");
+    sw.className = "swatch" + (snippet.color === c.id ? " active" : "");
     sw.style.background = c.hex;
     sw.title = c.label;
     sw.addEventListener("click", (e) => {
       e.stopPropagation();
-      snippets[index].color = c.id;
+      // Update the source array
+      const srcArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
+      srcArr[snippet._srcIndex].color = c.id;
       save(() => render());
     });
     popover.appendChild(sw);
@@ -232,7 +304,7 @@ function toggleColorPicker(index, parentEl, currentColorId) {
 
 // ── Note editor ──
 
-function showNoteEditor(parent, replaceEl, index, currentNote) {
+function showNoteEditor(parent, replaceEl, snippet, currentNote) {
   const textarea = document.createElement("textarea");
   textarea.className = "snippet-note-input";
   textarea.value = currentNote;
@@ -242,7 +314,8 @@ function showNoteEditor(parent, replaceEl, index, currentNote) {
 
   function saveNote() {
     const note = textarea.value.trim();
-    snippets[index].note = note || undefined;
+    const srcArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
+    srcArr[snippet._srcIndex].note = note || undefined;
     save(() => render());
   }
 
@@ -261,17 +334,33 @@ function showNoteEditor(parent, replaceEl, index, currentNote) {
 function addSnippet() {
   const text = inputEl.value.trim();
   if (!text) return;
-  if (snippets.some((s) => s.text === text)) {
+  // Check for duplicates in both arrays
+  if (pageSnippets.some((s) => s.text === text) || siteSnippets.some((s) => s.text === text)) {
     inputEl.select();
     return;
   }
-  snippets.push({ text, color: defaultColor, createdAt: Date.now() });
+  const entry = { text, color: defaultColor, createdAt: Date.now() };
+  if (defaultScope === "site") {
+    siteSnippets.push(entry);
+  } else {
+    pageSnippets.push(entry);
+  }
   inputEl.value = "";
   save(() => render());
 }
 
-function removeSnippet(index) {
-  snippets.splice(index, 1);
+function removeSnippet(snippet) {
+  const srcArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
+  srcArr.splice(snippet._srcIndex, 1);
+  save(() => render());
+}
+
+function toggleSnippetScope(snippet) {
+  const fromArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
+  const toArr = snippet._scope === "site" ? pageSnippets : siteSnippets;
+  // Remove from source, strip internal fields, add to target
+  const [moved] = fromArr.splice(snippet._srcIndex, 1);
+  toArr.push(moved);
   save(() => render());
 }
 
@@ -286,8 +375,11 @@ inputEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addSnippet();
 });
 clearBtn.addEventListener("click", () => {
-  if (confirm(`Remove all ${snippets.length} snippet${snippets.length !== 1 ? "s" : ""} from this page?`)) {
-    snippets = [];
+  const total = pageSnippets.length + siteSnippets.length;
+  if (total === 0) return;
+  if (confirm(`Remove all ${total} snippet${total !== 1 ? "s" : ""} from this page?`)) {
+    pageSnippets = [];
+    siteSnippets = [];
     save(() => render());
   }
 });
@@ -319,6 +411,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (!tab?.url) return;
 
   currentKey = urlKey(tab.url);
+  currentOrigin = originKey(tab.url);
   try {
     const u = new URL(tab.url);
     pageDomainEl.textContent = u.origin;
@@ -328,20 +421,29 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     pageDomainEl.textContent = currentKey;
   }
 
-  chrome.storage.local.get(["pages", "defaultColor", "showNotes"], (result) => {
+  chrome.storage.local.get(["pages", "sites", "defaultColor", "defaultScope", "showNotes"], (result) => {
     const pages = result.pages || {};
-    const stored = pages[currentKey]?.snippets || [];
+    const sites = result.sites || {};
 
     // Migrate old format: if snippets are plain strings, convert them
-    snippets = stored.map((s) => {
+    const storedPage = pages[currentKey]?.snippets || [];
+    pageSnippets = storedPage.map((s) => {
+      if (typeof s === "string") return { text: s, color: DEFAULT_COLOR };
+      return s;
+    });
+
+    const storedSite = sites[currentOrigin]?.snippets || [];
+    siteSnippets = storedSite.map((s) => {
       if (typeof s === "string") return { text: s, color: DEFAULT_COLOR };
       return s;
     });
 
     defaultColor = result.defaultColor || DEFAULT_COLOR;
+    defaultScope = result.defaultScope || DEFAULT_SCOPE;
     showNotes = result.showNotes || false;
     toggleNotesBtn.innerHTML = showNotes ? "Show notes &#9679;" : "Show notes &#9675;";
     renderDefaultPalette();
+    renderScopeToggle();
     render();
     inputEl.focus();
   });

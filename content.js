@@ -92,6 +92,14 @@ function urlKey(urlStr) {
   }
 }
 
+function originKey(urlStr) {
+  try {
+    return new URL(urlStr).origin;
+  } catch {
+    return urlStr;
+  }
+}
+
 // ── Cached snippets & MutationObserver ──
 
 let cachedSnippets = [];
@@ -146,20 +154,28 @@ function hideNoteLabels() {
 
 function run() {
   const key = urlKey(window.location.href);
+  const origin = originKey(window.location.href);
 
-  chrome.storage.local.get(["pages"], (result) => {
+  chrome.storage.local.get(["pages", "sites"], (result) => {
     const pages = result.pages || {};
-    const entry = pages[key];
+    const sites = result.sites || {};
+    const pageEntry = pages[key];
+    const siteEntry = sites[origin];
 
     stopObserver();
     clearHighlights();
 
-    if (!entry || !entry.snippets || entry.snippets.length === 0) {
+    const merged = [
+      ...(pageEntry?.snippets || []),
+      ...(siteEntry?.snippets || []),
+    ];
+
+    if (merged.length === 0) {
       cachedSnippets = [];
       return;
     }
 
-    cachedSnippets = entry.snippets;
+    cachedSnippets = merged;
     highlightSubtree(document.body);
     applyNotesState();
     startObserver();
