@@ -24,7 +24,8 @@ const addBtn = document.getElementById("addBtn");
 const clearBtn = document.getElementById("clearBtn");
 const rehighlightBtn = document.getElementById("rehighlightBtn");
 const toggleNotesBtn = document.getElementById("toggleNotesBtn");
-const pageUrlEl = document.getElementById("pageUrl");
+const pageDomainEl = document.getElementById("pageDomain");
+const pagePathEl = document.getElementById("pagePath");
 const defaultPaletteEl = document.getElementById("defaultPalette");
 
 let currentKey = "";
@@ -316,7 +317,14 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (!tab?.url) return;
 
   currentKey = urlKey(tab.url);
-  pageUrlEl.textContent = currentKey;
+  try {
+    const u = new URL(tab.url);
+    pageDomainEl.textContent = u.origin;
+    const path = u.pathname.replace(/\/+$/, "");
+    pagePathEl.textContent = path || "/";
+  } catch {
+    pageDomainEl.textContent = currentKey;
+  }
 
   chrome.storage.local.get(["pages", "defaultColor", "showNotes"], (result) => {
     const pages = result.pages || {};
