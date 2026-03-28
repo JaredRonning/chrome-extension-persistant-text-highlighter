@@ -3,7 +3,10 @@
   "name": "Persistent Page Highlighter",
   "version": "1.0",
   "description": "Highlight saved text snippets on any webpage, every time you visit.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "contextMenus"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

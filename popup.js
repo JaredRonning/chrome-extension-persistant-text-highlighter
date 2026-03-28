@@ -32,6 +32,20 @@ let openPopoverIndex = -1; // which snippet has its color picker open
 
 // ── Helpers ──
 
+function timeAgo(ts) {
+  if (!ts) return null;
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
 function colorHex(id) {
   return COLORS.find((c) => c.id === id)?.hex || COLORS[0].hex;
 }
@@ -132,9 +146,20 @@ function render() {
 
     dotWrapper.appendChild(dot);
 
+    const txtWrapper = document.createElement("div");
+    txtWrapper.className = "snippet-text";
+
     const txt = document.createElement("span");
-    txt.className = "snippet-text";
     txt.textContent = snippet.text;
+    txtWrapper.appendChild(txt);
+
+    const ago = timeAgo(snippet.createdAt);
+    if (ago) {
+      const ts = document.createElement("span");
+      ts.className = "snippet-time";
+      ts.textContent = ago;
+      txtWrapper.appendChild(ts);
+    }
 
     const btn = document.createElement("button");
     btn.className = "remove";
@@ -143,7 +168,7 @@ function render() {
     btn.addEventListener("click", () => removeSnippet(i));
 
     row.appendChild(dotWrapper);
-    row.appendChild(txt);
+    row.appendChild(txtWrapper);
     row.appendChild(btn);
     listEl.appendChild(row);
   });
@@ -189,7 +214,7 @@ function addSnippet() {
     inputEl.select();
     return;
   }
-  snippets.push({ text, color: defaultColor });
+  snippets.push({ text, color: defaultColor, createdAt: Date.now() });
   inputEl.value = "";
   save(() => render());
 }
