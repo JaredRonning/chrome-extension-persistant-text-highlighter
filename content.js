@@ -132,6 +132,33 @@ function applyNotesState() {
   });
 }
 
+// ── Note tooltip (fixed-position, avoids overflow clipping) ──
+
+let tooltipEl = null;
+
+function ensureTooltip() {
+  if (tooltipEl) return;
+  tooltipEl = document.createElement("div");
+  tooltipEl.className = "pph-note-tooltip";
+  document.body.appendChild(tooltipEl);
+
+  document.addEventListener("mouseover", (e) => {
+    const mark = e.target.closest(".pph-highlight[data-note]");
+    if (!mark || !document.body.classList.contains("pph-show-notes")) return;
+    const rect = mark.getBoundingClientRect();
+    tooltipEl.textContent = mark.getAttribute("data-note");
+    tooltipEl.style.left = rect.right + 2 + "px";
+    tooltipEl.style.top = rect.top - tooltipEl.offsetHeight - 2 + "px";
+    tooltipEl.classList.add("visible");
+  });
+
+  document.addEventListener("mouseout", (e) => {
+    const mark = e.target.closest(".pph-highlight[data-note]");
+    if (!mark) return;
+    tooltipEl.classList.remove("visible");
+  });
+}
+
 function run() {
   const key = urlKey(window.location.href);
 
@@ -150,6 +177,7 @@ function run() {
     cachedSnippets = entry.snippets;
     highlightSubtree(document.body);
     applyNotesState();
+    ensureTooltip();
     startObserver();
   });
 }

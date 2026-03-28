@@ -17,17 +17,10 @@
 .pph-highlight[data-color="teal"]   { background-color: #80cbc4; }
 .pph-highlight[data-color="amber"]  { background-color: #ffcc80; }
 
-/* Note labels — shown only when toggle is on */
-body.pph-show-notes .pph-highlight[data-note] {
-  position: relative;
-}
-body.pph-show-notes .pph-highlight[data-note]::after {
-  content: attr(data-note);
-  position: absolute;
-  bottom: 100%;
-  left: 100%;
-  margin-bottom: 2px;
-  margin-left: 2px;
+/* Note tooltip — JS-positioned, immune to ancestor overflow:hidden */
+.pph-note-tooltip {
+  position: fixed;
+  display: none;
   background: rgba(30, 30, 30, 0.92);
   color: #eee;
   font-size: 10px;
@@ -41,4 +34,7 @@ body.pph-show-notes .pph-highlight[data-note]::after {
   pointer-events: none;
   z-index: 9999;
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.pph-note-tooltip.visible {
+  display: block;
 }
