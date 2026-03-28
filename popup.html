@@ -246,6 +246,10 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  .footer-buttons {
+    display: flex;
+    gap: 6px;
+  }
   .footer .clear-btn {
     background: none;
     border: 1px solid var(--border);
@@ -290,7 +294,10 @@
 
 <div class="footer" id="footer" style="display:none">
   <span class="count" id="count"></span>
-  <button class="clear-btn" id="clearBtn">Clear all</button>
+  <div class="footer-buttons">
+    <button class="clear-btn" id="rehighlightBtn">Re-highlight</button>
+    <button class="clear-btn" id="clearBtn">Clear all</button>
+  </div>
 </div>
 
 <script src="popup.js"></script>

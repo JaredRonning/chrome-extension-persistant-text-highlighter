@@ -22,6 +22,7 @@ const countEl = document.getElementById("count");
 const inputEl = document.getElementById("snippetInput");
 const addBtn = document.getElementById("addBtn");
 const clearBtn = document.getElementById("clearBtn");
+const rehighlightBtn = document.getElementById("rehighlightBtn");
 const pageUrlEl = document.getElementById("pageUrl");
 const defaultPaletteEl = document.getElementById("defaultPalette");
 
@@ -237,6 +238,9 @@ inputEl.addEventListener("keydown", (e) => {
 clearBtn.addEventListener("click", () => {
   snippets = [];
   save(() => render());
+});
+rehighlightBtn.addEventListener("click", () => {
+  notifyContentScript();
 });
 
 // ── Init ──

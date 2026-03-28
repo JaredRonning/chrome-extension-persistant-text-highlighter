@@ -83,24 +83,66 @@ function urlKey(urlStr) {
   }
 }
 
+// ── Cached snippets & MutationObserver ──
+
+let cachedSnippets = [];
+let observer = null;
+let debounceTimer = null;
+
+function highlightSubtree(root) {
+  cachedSnippets.forEach((snippet) => {
+    if (typeof snippet === "string") {
+      highlightText(root, snippet, "yellow");
+    } else {
+      highlightText(root, snippet.text, snippet.color || "yellow");
+    }
+  });
+}
+
+function stopObserver() {
+  if (observer) observer.disconnect();
+}
+
+function startObserver() {
+  if (!observer) {
+    observer = new MutationObserver((mutations) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (cachedSnippets.length === 0) return;
+
+        stopObserver();
+        for (const mutation of mutations) {
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              highlightSubtree(node);
+            }
+          }
+        }
+        startObserver();
+      }, 300);
+    });
+  }
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
 function run() {
   const key = urlKey(window.location.href);
 
   chrome.storage.local.get(["pages"], (result) => {
     const pages = result.pages || {};
     const entry = pages[key];
-    if (!entry || !entry.snippets || entry.snippets.length === 0) return;
 
+    stopObserver();
     clearHighlights();
 
-    entry.snippets.forEach((snippet) => {
-      // Support both old format (plain string) and new format ({text, color})
-      if (typeof snippet === "string") {
-        highlightText(document.body, snippet, "yellow");
-      } else {
-        highlightText(document.body, snippet.text, snippet.color || "yellow");
-      }
-    });
+    if (!entry || !entry.snippets || entry.snippets.length === 0) {
+      cachedSnippets = [];
+      return;
+    }
+
+    cachedSnippets = entry.snippets;
+    highlightSubtree(document.body);
+    startObserver();
   });
 }
 
@@ -110,7 +152,6 @@ run();
 // Listen for messages from the popup to re-run highlights after changes
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === "refresh-highlights") {
-    clearHighlights();
     run();
   }
 });
