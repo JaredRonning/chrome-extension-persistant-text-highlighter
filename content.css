@@ -1,0 +1,18 @@
+/* Highlight base */
+.pph-highlight {
+  border-radius: 2px;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  color: #000;
+}
+
+/* Color classes by ID */
+.pph-highlight[data-color="yellow"] { background-color: #fff176; }
+.pph-highlight[data-color="green"]  { background-color: #aed581; }
+.pph-highlight[data-color="blue"]   { background-color: #4fc3f7; }
+.pph-highlight[data-color="orange"] { background-color: #ff8a65; }
+.pph-highlight[data-color="purple"] { background-color: #ce93d8; }
+.pph-highlight[data-color="pink"]   { background-color: #f48fb1; }
+.pph-highlight[data-color="teal"]   { background-color: #80cbc4; }
+.pph-highlight[data-color="amber"]  { background-color: #ffcc80; }

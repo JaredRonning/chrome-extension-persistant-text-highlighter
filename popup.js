@@ -1,0 +1,240 @@
+/**
+ * Color palette — shared between popup and content script via color ID.
+ * Each entry: { id, hex, label }
+ */
+const COLORS = [
+  { id: "yellow", hex: "#fff176", label: "Yellow" },
+  { id: "green",  hex: "#aed581", label: "Green" },
+  { id: "blue",   hex: "#4fc3f7", label: "Blue" },
+  { id: "orange", hex: "#ff8a65", label: "Orange" },
+  { id: "purple", hex: "#ce93d8", label: "Purple" },
+  { id: "pink",   hex: "#f48fb1", label: "Pink" },
+  { id: "teal",   hex: "#80cbc4", label: "Teal" },
+  { id: "amber",  hex: "#ffcc80", label: "Amber" },
+];
+
+const DEFAULT_COLOR = "yellow";
+
+// ── DOM refs ──
+const listEl = document.getElementById("list");
+const footerEl = document.getElementById("footer");
+const countEl = document.getElementById("count");
+const inputEl = document.getElementById("snippetInput");
+const addBtn = document.getElementById("addBtn");
+const clearBtn = document.getElementById("clearBtn");
+const pageUrlEl = document.getElementById("pageUrl");
+const defaultPaletteEl = document.getElementById("defaultPalette");
+
+let currentKey = "";
+let snippets = [];        // Array of { text: string, color: string (color id) }
+let defaultColor = DEFAULT_COLOR;
+let openPopoverIndex = -1; // which snippet has its color picker open
+
+// ── Helpers ──
+
+function colorHex(id) {
+  return COLORS.find((c) => c.id === id)?.hex || COLORS[0].hex;
+}
+
+function urlKey(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    return (u.origin + u.pathname).replace(/\/+$/, "");
+  } catch {
+    return urlStr;
+  }
+}
+
+// ── Storage ──
+
+function save(callback) {
+  chrome.storage.local.get(["pages", "defaultColor"], (result) => {
+    const pages = result.pages || {};
+    if (snippets.length === 0) {
+      delete pages[currentKey];
+    } else {
+      pages[currentKey] = { snippets };
+    }
+    chrome.storage.local.set({ pages, defaultColor }, () => {
+      notifyContentScript();
+      if (callback) callback();
+    });
+  });
+}
+
+function notifyContentScript() {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]?.id) {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "refresh-highlights" }).catch(() => {});
+    }
+  });
+}
+
+// ── Default color palette ──
+
+function renderDefaultPalette() {
+  defaultPaletteEl.innerHTML = "";
+  COLORS.forEach((c) => {
+    const sw = document.createElement("span");
+    sw.className = "swatch" + (defaultColor === c.id ? " selected" : "");
+    sw.style.background = c.hex;
+    sw.title = c.label;
+    sw.addEventListener("click", () => {
+      defaultColor = c.id;
+      // Save the global default (not page-specific)
+      chrome.storage.local.set({ defaultColor });
+      renderDefaultPalette();
+    });
+    defaultPaletteEl.appendChild(sw);
+  });
+}
+
+// ── Snippet list ──
+
+function closeAllPopovers() {
+  openPopoverIndex = -1;
+  document.querySelectorAll(".color-picker-popover").forEach((el) => el.remove());
+}
+
+function render() {
+  closeAllPopovers();
+  listEl.innerHTML = "";
+
+  if (snippets.length === 0) {
+    listEl.innerHTML = `
+      <div class="empty">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        <div>No snippets yet for this page.<br/>Add text above to get started.</div>
+      </div>`;
+    footerEl.style.display = "none";
+    return;
+  }
+
+  snippets.forEach((snippet, i) => {
+    const row = document.createElement("div");
+    row.className = "snippet";
+
+    // Dot wrapper (holds dot + popover)
+    const dotWrapper = document.createElement("div");
+    dotWrapper.className = "dot-wrapper";
+
+    const dot = document.createElement("span");
+    dot.className = "color-dot";
+    dot.style.background = colorHex(snippet.color);
+    dot.title = "Change color";
+    dot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleColorPicker(i, dotWrapper, snippet.color);
+    });
+
+    dotWrapper.appendChild(dot);
+
+    const txt = document.createElement("span");
+    txt.className = "snippet-text";
+    txt.textContent = snippet.text;
+
+    const btn = document.createElement("button");
+    btn.className = "remove";
+    btn.innerHTML = "&#10005;";
+    btn.title = "Remove snippet";
+    btn.addEventListener("click", () => removeSnippet(i));
+
+    row.appendChild(dotWrapper);
+    row.appendChild(txt);
+    row.appendChild(btn);
+    listEl.appendChild(row);
+  });
+
+  footerEl.style.display = "flex";
+  countEl.textContent = `${snippets.length} snippet${snippets.length !== 1 ? "s" : ""}`;
+}
+
+function toggleColorPicker(index, parentEl, currentColorId) {
+  // If already open for this index, close it
+  if (openPopoverIndex === index) {
+    closeAllPopovers();
+    return;
+  }
+  closeAllPopovers();
+  openPopoverIndex = index;
+
+  const popover = document.createElement("div");
+  popover.className = "color-picker-popover";
+
+  COLORS.forEach((c) => {
+    const sw = document.createElement("span");
+    sw.className = "swatch" + (currentColorId === c.id ? " active" : "");
+    sw.style.background = c.hex;
+    sw.title = c.label;
+    sw.addEventListener("click", (e) => {
+      e.stopPropagation();
+      snippets[index].color = c.id;
+      save(() => render());
+    });
+    popover.appendChild(sw);
+  });
+
+  parentEl.appendChild(popover);
+}
+
+// ── Actions ──
+
+function addSnippet() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  if (snippets.some((s) => s.text === text)) {
+    inputEl.select();
+    return;
+  }
+  snippets.push({ text, color: defaultColor });
+  inputEl.value = "";
+  save(() => render());
+}
+
+function removeSnippet(index) {
+  snippets.splice(index, 1);
+  save(() => render());
+}
+
+// ── Close popover on outside click ──
+document.addEventListener("click", () => {
+  closeAllPopovers();
+});
+
+// ── Event Listeners ──
+addBtn.addEventListener("click", addSnippet);
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addSnippet();
+});
+clearBtn.addEventListener("click", () => {
+  snippets = [];
+  save(() => render());
+});
+
+// ── Init ──
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  const tab = tabs[0];
+  if (!tab?.url) return;
+
+  currentKey = urlKey(tab.url);
+  pageUrlEl.textContent = currentKey;
+
+  chrome.storage.local.get(["pages", "defaultColor"], (result) => {
+    const pages = result.pages || {};
+    const stored = pages[currentKey]?.snippets || [];
+
+    // Migrate old format: if snippets are plain strings, convert them
+    snippets = stored.map((s) => {
+      if (typeof s === "string") return { text: s, color: DEFAULT_COLOR };
+      return s;
+    });
+
+    defaultColor = result.defaultColor || DEFAULT_COLOR;
+    renderDefaultPalette();
+    render();
+    inputEl.focus();
+  });
+});
