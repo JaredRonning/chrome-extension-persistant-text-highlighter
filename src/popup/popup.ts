@@ -1,4 +1,10 @@
-import { ColorId, Snippet, DisplaySnippet, Scope } from "../shared/types";
+import {
+  ColorId,
+  Snippet,
+  DisplaySnippet,
+  Scope,
+  CountMatchesResponse,
+} from "../shared/types";
 import { COLORS, DEFAULT_COLOR, colorHex } from "../shared/colors";
 import { DEFAULT_SCOPE, normalizeSnippet } from "../shared/storage";
 import { urlKey, originKey } from "../shared/url";
@@ -193,6 +199,12 @@ function render(): void {
     txt.textContent = snippet.text;
     txtWrapper.appendChild(txt);
 
+    const matchCount = document.createElement("span");
+    matchCount.className = "match-count";
+    matchCount.dataset.text = snippet.text;
+    matchCount.textContent = "…";
+    txtWrapper.appendChild(matchCount);
+
     const ago = timeAgo(snippet.createdAt);
     if (ago) {
       const ts = document.createElement("span");
@@ -238,6 +250,41 @@ function render(): void {
   footerEl.style.display = "flex";
   const total = displayList.length;
   countEl.textContent = `${total} snippet${total !== 1 ? "s" : ""}`;
+
+  updateMatchIndicators();
+}
+
+function updateMatchIndicators(): void {
+  const texts = [
+    ...new Set(buildDisplayList().map((s) => s.text)),
+  ];
+  if (texts.length === 0) return;
+
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tabId = tabs[0]?.id;
+    console.log("[PPH popup] updateMatchIndicators, tabId:", tabId, "texts:", texts);
+    if (tabId === undefined) return;
+    chrome.tabs.sendMessage(
+      tabId,
+      { action: "count-matches" as const, texts },
+      (counts: CountMatchesResponse) => {
+        console.log("[PPH popup] counts response:", counts, "lastError:", chrome.runtime.lastError?.message);
+        if (chrome.runtime.lastError || !counts) return;
+        document
+          .querySelectorAll<HTMLSpanElement>(".match-count")
+          .forEach((el) => {
+            const count = counts[el.dataset.text ?? ""] || 0;
+            if (count > 0) {
+              el.textContent = `*${count}`;
+              el.classList.add("found");
+            } else {
+              el.textContent = "*0";
+              el.classList.remove("found");
+            }
+          });
+      },
+    );
+  });
 }
 
 function toggleColorPicker(

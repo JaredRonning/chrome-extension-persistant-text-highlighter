@@ -51,4 +51,14 @@ export interface ToggleNotesMessage {
   showNotes: boolean;
 }
 
-export type ExtensionMessage = RefreshHighlightsMessage | ToggleNotesMessage;
+export interface CountMatchesMessage {
+  action: "count-matches";
+  texts: string[];
+}
+
+export type CountMatchesResponse = Record<string, number>;
+
+export type ExtensionMessage =
+  | RefreshHighlightsMessage
+  | ToggleNotesMessage
+  | CountMatchesMessage;
