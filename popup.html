@@ -43,6 +43,16 @@
     font-weight: 700;
     letter-spacing: -0.3px;
   }
+  .header > div { flex: 1; min-width: 0; }
+  .header .version {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    align-self: flex-start;
+    padding-top: 2px;
+  }
   .header .url {
     display: block;
     font-size: 11px;
@@ -325,6 +335,7 @@
     <h1>Page Highlighter</h1>
     <span class="url" id="pageUrl">—</span>
   </div>
+  <span class="version" id="version"></span>
 </div>
 
 <div class="default-color-row">

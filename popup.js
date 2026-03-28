@@ -302,6 +302,14 @@ toggleNotesBtn.addEventListener("click", () => {
   });
 });
 
+// ── Version ──
+fetch(chrome.runtime.getURL("version.json"))
+  .then((r) => r.json())
+  .then((data) => {
+    document.getElementById("version").textContent = "v" + data.version;
+  })
+  .catch(() => {});
+
 // ── Init ──
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const tab = tabs[0];
