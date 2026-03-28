@@ -162,6 +162,27 @@ function render() {
       txtWrapper.appendChild(ts);
     }
 
+    // Note area
+    if (snippet.note) {
+      const noteEl = document.createElement("span");
+      noteEl.className = "snippet-note";
+      noteEl.textContent = snippet.note;
+      noteEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showNoteEditor(txtWrapper, noteEl, i, snippet.note);
+      });
+      txtWrapper.appendChild(noteEl);
+    } else {
+      const addNote = document.createElement("span");
+      addNote.className = "snippet-note-add";
+      addNote.textContent = "+ Add note";
+      addNote.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showNoteEditor(txtWrapper, addNote, i, "");
+      });
+      txtWrapper.appendChild(addNote);
+    }
+
     const btn = document.createElement("button");
     btn.className = "remove";
     btn.innerHTML = "&#10005;";
@@ -204,6 +225,32 @@ function toggleColorPicker(index, parentEl, currentColorId) {
   });
 
   parentEl.appendChild(popover);
+}
+
+// ── Note editor ──
+
+function showNoteEditor(parent, replaceEl, index, currentNote) {
+  const textarea = document.createElement("textarea");
+  textarea.className = "snippet-note-input";
+  textarea.value = currentNote;
+  textarea.placeholder = "Type a note…";
+  parent.replaceChild(textarea, replaceEl);
+  textarea.focus();
+
+  function saveNote() {
+    const note = textarea.value.trim();
+    snippets[index].note = note || undefined;
+    save(() => render());
+  }
+
+  textarea.addEventListener("blur", saveNote);
+  textarea.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      textarea.blur();
+    }
+  });
+  textarea.addEventListener("click", (e) => e.stopPropagation());
 }
 
 // ── Actions ──
