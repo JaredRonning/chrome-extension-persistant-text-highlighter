@@ -106,6 +106,8 @@ function save(callback) {
     }
 
     chrome.storage.local.set({ pages, sites, defaultColor, defaultScope }, () => {
+      console.log("[PPH popup] saved sites:", JSON.stringify(sites));
+      console.log("[PPH popup] currentOrigin:", currentOrigin);
       notifyContentScript();
       if (callback) callback();
     });

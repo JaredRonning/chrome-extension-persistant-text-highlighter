@@ -1,3 +1,5 @@
+console.log("[PPH content] v2 loaded");
+
 /**
  * Persistent Page Highlighter — Content Script
  * Runs on every page, checks storage for snippets matching the current URL,
@@ -162,6 +164,10 @@ function run() {
     const pageEntry = pages[key];
     const siteEntry = sites[origin];
 
+    console.log("[PPH content] origin:", origin);
+    console.log("[PPH content] result.sites:", JSON.stringify(result.sites));
+    console.log("[PPH content] siteEntry:", JSON.stringify(siteEntry));
+
     stopObserver();
     clearHighlights();
 
@@ -169,6 +175,7 @@ function run() {
       ...(pageEntry?.snippets || []),
       ...(siteEntry?.snippets || []),
     ];
+    console.log("[PPH content] merged count:", merged.length);
 
     if (merged.length === 0) {
       cachedSnippets = [];
