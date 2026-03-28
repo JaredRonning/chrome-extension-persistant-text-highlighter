@@ -145,16 +145,25 @@ function ensureTooltip() {
   document.addEventListener("mouseover", (e) => {
     const mark = e.target.closest(".pph-highlight[data-note]");
     if (!mark || !document.body.classList.contains("pph-show-notes")) return;
-    const rect = mark.getBoundingClientRect();
+
     tooltipEl.textContent = mark.getAttribute("data-note");
-    tooltipEl.style.left = rect.right + 2 + "px";
-    tooltipEl.style.top = rect.top - tooltipEl.offsetHeight - 2 + "px";
+    // Show off-screen first so we can measure height
+    tooltipEl.style.left = "-9999px";
     tooltipEl.classList.add("visible");
+
+    const rect = mark.getBoundingClientRect();
+    const tipH = tooltipEl.offsetHeight;
+    let top = rect.top - tipH - 2;
+    if (top < 0) top = rect.bottom + 2; // flip below if no room above
+    tooltipEl.style.left = rect.right + 2 + "px";
+    tooltipEl.style.top = top + "px";
   });
 
   document.addEventListener("mouseout", (e) => {
+    if (!tooltipEl.classList.contains("visible")) return;
     const mark = e.target.closest(".pph-highlight[data-note]");
     if (!mark) return;
+    if (mark.contains(e.relatedTarget)) return;
     tooltipEl.classList.remove("visible");
   });
 }
