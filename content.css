@@ -17,10 +17,9 @@
 .pph-highlight[data-color="teal"]   { background-color: #80cbc4; }
 .pph-highlight[data-color="amber"]  { background-color: #ffcc80; }
 
-/* Note tooltip — JS-positioned, immune to ancestor overflow:hidden */
-.pph-note-tooltip {
-  position: fixed;
-  display: none;
+/* Note labels — JS-positioned on body, immune to ancestor overflow:hidden */
+.pph-note-label {
+  position: absolute;
   background: rgba(30, 30, 30, 0.92);
   color: #eee;
   font-size: 10px;
@@ -34,7 +33,4 @@
   pointer-events: none;
   z-index: 9999;
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-}
-.pph-note-tooltip.visible {
-  display: block;
 }

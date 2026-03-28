@@ -68,6 +68,7 @@ function highlightText(root, text, colorId, note) {
 }
 
 function clearHighlights() {
+  hideNoteLabels();
   document.querySelectorAll(".pph-highlight").forEach((mark) => {
     const parent = mark.parentNode;
     parent.replaceChild(document.createTextNode(mark.textContent), mark);
@@ -129,44 +130,35 @@ function startObserver() {
 function applyNotesState() {
   chrome.storage.local.get(["showNotes"], (result) => {
     document.body.classList.toggle("pph-show-notes", result.showNotes || false);
+    showNoteLabels();
   });
 }
 
-// ── Note tooltip (fixed-position, avoids overflow clipping) ──
+// ── Persistent note labels (absolute-positioned on body) ──
 
-let tooltipEl = null;
+function hideNoteLabels() {
+  document.querySelectorAll(".pph-note-label").forEach((el) => el.remove());
+}
 
-function ensureTooltip() {
-  if (tooltipEl) return;
-  tooltipEl = document.createElement("div");
-  tooltipEl.className = "pph-note-tooltip";
-  document.body.appendChild(tooltipEl);
-
-  document.addEventListener("mouseover", (e) => {
-    const mark = e.target.closest(".pph-highlight[data-note]");
-    if (!mark || !document.body.classList.contains("pph-show-notes")) return;
-
-    tooltipEl.textContent = mark.getAttribute("data-note");
-    // Show off-screen first so we can measure height
-    tooltipEl.style.left = "-9999px";
-    tooltipEl.classList.add("visible");
-
+function showNoteLabels() {
+  hideNoteLabels();
+  if (!document.body.classList.contains("pph-show-notes")) return;
+  document.querySelectorAll(".pph-highlight[data-note]").forEach((mark) => {
+    const label = document.createElement("div");
+    label.className = "pph-note-label";
+    label.textContent = mark.getAttribute("data-note");
+    document.body.appendChild(label);
     const rect = mark.getBoundingClientRect();
-    const tipH = tooltipEl.offsetHeight;
-    let top = rect.top - tipH - 2;
-    if (top < 0) top = rect.bottom + 2; // flip below if no room above
-    tooltipEl.style.left = rect.right + 2 + "px";
-    tooltipEl.style.top = top + "px";
-  });
-
-  document.addEventListener("mouseout", (e) => {
-    if (!tooltipEl.classList.contains("visible")) return;
-    const mark = e.target.closest(".pph-highlight[data-note]");
-    if (!mark) return;
-    if (mark.contains(e.relatedTarget)) return;
-    tooltipEl.classList.remove("visible");
+    label.style.left = (rect.right + window.scrollX + 2) + "px";
+    label.style.top = (rect.top + window.scrollY - label.offsetHeight - 2) + "px";
   });
 }
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(showNoteLabels, 200);
+});
 
 function run() {
   const key = urlKey(window.location.href);
@@ -186,7 +178,6 @@ function run() {
     cachedSnippets = entry.snippets;
     highlightSubtree(document.body);
     applyNotesState();
-    ensureTooltip();
     startObserver();
   });
 }
@@ -200,5 +191,6 @@ chrome.runtime.onMessage.addListener((msg) => {
     run();
   } else if (msg.action === "toggle-notes") {
     document.body.classList.toggle("pph-show-notes", msg.showNotes);
+    showNoteLabels();
   }
 });
