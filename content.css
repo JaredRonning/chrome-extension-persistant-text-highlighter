@@ -17,20 +17,10 @@
 .pph-highlight[data-color="teal"]   { background-color: #80cbc4; }
 .pph-highlight[data-color="amber"]  { background-color: #ffcc80; }
 
-/* Note labels — JS-positioned on body, immune to ancestor overflow:hidden */
+/* Note labels — inline spans inserted after highlights */
 .pph-note-label {
-  position: absolute;
-  background: rgba(30, 30, 30, 0.92);
-  color: #eee;
   font-size: 10px;
-  line-height: 1.3;
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #888;
   pointer-events: none;
-  z-index: 9999;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  user-select: none;
 }

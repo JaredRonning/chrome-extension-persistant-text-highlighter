@@ -22,7 +22,8 @@ function highlightText(root, text, colorId, note) {
       if (["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT"].includes(tag)) {
         return NodeFilter.FILTER_REJECT;
       }
-      if (node.parentElement?.classList?.contains("pph-highlight")) {
+      if (node.parentElement?.classList?.contains("pph-highlight") ||
+          node.parentElement?.classList?.contains("pph-note-label")) {
         return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
@@ -134,7 +135,7 @@ function applyNotesState() {
   });
 }
 
-// ── Persistent note labels (absolute-positioned on body) ──
+// ── Inline note labels (inserted after highlights) ──
 
 function hideNoteLabels() {
   document.querySelectorAll(".pph-note-label").forEach((el) => el.remove());
@@ -143,22 +144,15 @@ function hideNoteLabels() {
 function showNoteLabels() {
   hideNoteLabels();
   if (!document.body.classList.contains("pph-show-notes")) return;
+  stopObserver();
   document.querySelectorAll(".pph-highlight[data-note]").forEach((mark) => {
-    const label = document.createElement("div");
+    const label = document.createElement("span");
     label.className = "pph-note-label";
-    label.textContent = mark.getAttribute("data-note");
-    document.body.appendChild(label);
-    const rect = mark.getBoundingClientRect();
-    label.style.left = (rect.right + window.scrollX + 2) + "px";
-    label.style.top = (rect.top + window.scrollY - label.offsetHeight - 2) + "px";
+    label.textContent = " [" + mark.getAttribute("data-note") + "]";
+    mark.after(label);
   });
+  if (cachedSnippets.length > 0) startObserver();
 }
-
-let resizeTimer = null;
-window.addEventListener("resize", () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(showNoteLabels, 200);
-});
 
 function run() {
   const key = urlKey(window.location.href);
