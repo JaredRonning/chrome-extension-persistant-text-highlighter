@@ -52,8 +52,14 @@ function highlightText(root, text, colorId, note) {
       const mark = document.createElement("mark");
       mark.className = "pph-highlight";
       mark.setAttribute("data-color", colorId);
-      if (note) mark.setAttribute("data-note", note);
-      mark.textContent = match[0];
+      mark.appendChild(document.createTextNode(match[0]));
+      if (note) {
+        mark.setAttribute("data-note", note);
+        const label = document.createElement("span");
+        label.className = "pph-note-label";
+        label.textContent = " [" + note + "]";
+        mark.appendChild(label);
+      }
       frag.appendChild(mark);
       lastIndex = regex.lastIndex;
     }
@@ -131,27 +137,11 @@ function startObserver() {
 function applyNotesState() {
   chrome.storage.local.get(["showNotes"], (result) => {
     document.body.classList.toggle("pph-show-notes", result.showNotes || false);
-    showNoteLabels();
   });
 }
-
-// ── Inline note labels (inserted after highlights) ──
 
 function hideNoteLabels() {
   document.querySelectorAll(".pph-note-label").forEach((el) => el.remove());
-}
-
-function showNoteLabels() {
-  hideNoteLabels();
-  if (!document.body.classList.contains("pph-show-notes")) return;
-  stopObserver();
-  document.querySelectorAll(".pph-highlight[data-note]").forEach((mark) => {
-    const label = document.createElement("span");
-    label.className = "pph-note-label";
-    label.textContent = " [" + mark.getAttribute("data-note") + "]";
-    mark.after(label);
-  });
-  if (cachedSnippets.length > 0) startObserver();
 }
 
 function run() {
@@ -185,6 +175,5 @@ chrome.runtime.onMessage.addListener((msg) => {
     run();
   } else if (msg.action === "toggle-notes") {
     document.body.classList.toggle("pph-show-notes", msg.showNotes);
-    showNoteLabels();
   }
 });

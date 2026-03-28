@@ -17,10 +17,12 @@
 .pph-highlight[data-color="teal"]   { background-color: #80cbc4; }
 .pph-highlight[data-color="amber"]  { background-color: #ffcc80; }
 
-/* Note labels — inline spans inserted after highlights */
+/* Note labels — embedded inside mark elements, toggled by CSS */
 .pph-note-label {
+  display: none;
   font-size: 10px;
-  color: #888;
-  pointer-events: none;
-  user-select: none;
+  color: #555;
+}
+body.pph-show-notes .pph-note-label {
+  display: inline;
 }
