@@ -286,8 +286,10 @@ inputEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addSnippet();
 });
 clearBtn.addEventListener("click", () => {
-  snippets = [];
-  save(() => render());
+  if (confirm(`Remove all ${snippets.length} snippet${snippets.length !== 1 ? "s" : ""} from this page?`)) {
+    snippets = [];
+    save(() => render());
+  }
 });
 rehighlightBtn.addEventListener("click", () => {
   notifyContentScript();
