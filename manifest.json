@@ -5,7 +5,7 @@
   "description": "Highlight saved text snippets on any webpage, every time you visit.",
   "permissions": ["storage", "activeTab", "contextMenus"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "dist/background/background.js"
   },
   "action": {
     "default_popup": "popup.html",
@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["dist/content/content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }

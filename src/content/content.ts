@@ -1,55 +1,61 @@
+import { ColorId, StoredSnippet, ExtensionMessage } from "../shared/types";
+import { urlKey, originKey } from "../shared/url";
+
 console.log("[PPH content] v2 loaded");
 
-/**
- * Persistent Page Highlighter — Content Script
- * Runs on every page, checks storage for snippets matching the current URL,
- * and highlights every occurrence in the DOM using per-snippet colors.
- */
-
-function escapeRegExp(str) {
+function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Walk text nodes inside `root` and wrap matches with <mark> tags.
- * colorId is the color identifier stored per snippet (e.g. "yellow", "blue").
- */
-function highlightText(root, text, colorId, note) {
+function highlightText(
+  root: Node,
+  text: string,
+  colorId: ColorId,
+  note?: string,
+): number {
   if (!text) return 0;
 
   const regex = new RegExp(escapeRegExp(text), "gi");
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const tag = node.parentElement?.tagName;
-      if (["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT"].includes(tag)) {
+    acceptNode(node: Node) {
+      const parent = node.parentElement;
+      const tag = parent?.tagName;
+      if (
+        tag &&
+        ["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT"].includes(tag)
+      ) {
         return NodeFilter.FILTER_REJECT;
       }
-      if (node.parentElement?.classList?.contains("pph-highlight") ||
-          node.parentElement?.classList?.contains("pph-note-label")) {
+      if (
+        parent?.classList?.contains("pph-highlight") ||
+        parent?.classList?.contains("pph-note-label")
+      ) {
         return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
     },
   });
 
-  const textNodes = [];
+  const textNodes: Node[] = [];
   while (walker.nextNode()) textNodes.push(walker.currentNode);
 
   let totalMatches = 0;
 
   for (const node of textNodes) {
     const nodeText = node.nodeValue;
-    if (!regex.test(nodeText)) continue;
+    if (!nodeText || !regex.test(nodeText)) continue;
     regex.lastIndex = 0;
 
     const frag = document.createDocumentFragment();
     let lastIndex = 0;
-    let match;
+    let match: RegExpExecArray | null;
 
     while ((match = regex.exec(nodeText)) !== null) {
       totalMatches++;
       if (match.index > lastIndex) {
-        frag.appendChild(document.createTextNode(nodeText.slice(lastIndex, match.index)));
+        frag.appendChild(
+          document.createTextNode(nodeText.slice(lastIndex, match.index)),
+        );
       }
       const mark = document.createElement("mark");
       mark.className = "pph-highlight";
@@ -70,45 +76,32 @@ function highlightText(root, text, colorId, note) {
       frag.appendChild(document.createTextNode(nodeText.slice(lastIndex)));
     }
 
-    node.parentNode.replaceChild(frag, node);
+    node.parentNode!.replaceChild(frag, node);
   }
 
   return totalMatches;
 }
 
-function clearHighlights() {
+function hideNoteLabels(): void {
+  document.querySelectorAll(".pph-note-label").forEach((el) => el.remove());
+}
+
+function clearHighlights(): void {
   hideNoteLabels();
   document.querySelectorAll(".pph-highlight").forEach((mark) => {
-    const parent = mark.parentNode;
-    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    const parent = mark.parentNode!;
+    parent.replaceChild(document.createTextNode(mark.textContent || ""), mark);
     parent.normalize();
   });
 }
 
-function urlKey(urlStr) {
-  try {
-    const u = new URL(urlStr);
-    return (u.origin + u.pathname).replace(/\/+$/, "");
-  } catch {
-    return urlStr;
-  }
-}
-
-function originKey(urlStr) {
-  try {
-    return new URL(urlStr).origin;
-  } catch {
-    return urlStr;
-  }
-}
-
 // ── Cached snippets & MutationObserver ──
 
-let cachedSnippets = [];
-let observer = null;
-let debounceTimer = null;
+let cachedSnippets: StoredSnippet[] = [];
+let observer: MutationObserver | null = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-function highlightSubtree(root) {
+function highlightSubtree(root: Node): void {
   cachedSnippets.forEach((snippet) => {
     if (typeof snippet === "string") {
       highlightText(root, snippet, "yellow");
@@ -118,20 +111,20 @@ function highlightSubtree(root) {
   });
 }
 
-function stopObserver() {
+function stopObserver(): void {
   if (observer) observer.disconnect();
 }
 
-function startObserver() {
+function startObserver(): void {
   if (!observer) {
     observer = new MutationObserver((mutations) => {
-      clearTimeout(debounceTimer);
+      if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         if (cachedSnippets.length === 0) return;
 
         stopObserver();
         for (const mutation of mutations) {
-          for (const node of mutation.addedNodes) {
+          for (const node of Array.from(mutation.addedNodes)) {
             if (node.nodeType === Node.ELEMENT_NODE) {
               highlightSubtree(node);
             }
@@ -144,17 +137,13 @@ function startObserver() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
-function applyNotesState() {
+function applyNotesState(): void {
   chrome.storage.local.get(["showNotes"], (result) => {
     document.body.classList.toggle("pph-show-notes", result.showNotes || false);
   });
 }
 
-function hideNoteLabels() {
-  document.querySelectorAll(".pph-note-label").forEach((el) => el.remove());
-}
-
-function run() {
+function run(): void {
   const key = urlKey(window.location.href);
   const origin = originKey(window.location.href);
 
@@ -171,7 +160,7 @@ function run() {
     stopObserver();
     clearHighlights();
 
-    const merged = [
+    const merged: StoredSnippet[] = [
       ...(pageEntry?.snippets || []),
       ...(siteEntry?.snippets || []),
     ];
@@ -193,10 +182,12 @@ function run() {
 run();
 
 // Listen for messages from the popup to re-run highlights after changes
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.action === "refresh-highlights") {
-    run();
-  } else if (msg.action === "toggle-notes") {
-    document.body.classList.toggle("pph-show-notes", msg.showNotes);
-  }
-});
+chrome.runtime.onMessage.addListener(
+  (msg: ExtensionMessage): undefined => {
+    if (msg.action === "refresh-highlights") {
+      run();
+    } else if (msg.action === "toggle-notes") {
+      document.body.classList.toggle("pph-show-notes", msg.showNotes);
+    }
+  },
+);

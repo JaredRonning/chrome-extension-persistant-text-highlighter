@@ -1,47 +1,35 @@
-/**
- * Color palette — shared between popup and content script via color ID.
- * Each entry: { id, hex, label }
- */
-const COLORS = [
-  { id: "yellow", hex: "#fff176", label: "Yellow" },
-  { id: "green",  hex: "#aed581", label: "Green" },
-  { id: "blue",   hex: "#4fc3f7", label: "Blue" },
-  { id: "orange", hex: "#ff8a65", label: "Orange" },
-  { id: "purple", hex: "#ce93d8", label: "Purple" },
-  { id: "pink",   hex: "#f48fb1", label: "Pink" },
-  { id: "teal",   hex: "#80cbc4", label: "Teal" },
-  { id: "amber",  hex: "#ffcc80", label: "Amber" },
-];
-
-const DEFAULT_COLOR = "yellow";
-const DEFAULT_SCOPE = "page";
+import { ColorId, Snippet, DisplaySnippet, Scope } from "../shared/types";
+import { COLORS, DEFAULT_COLOR, colorHex } from "../shared/colors";
+import { DEFAULT_SCOPE, normalizeSnippet } from "../shared/storage";
+import { urlKey, originKey } from "../shared/url";
+import { sendToActiveTab } from "../shared/messages";
 
 // ── DOM refs ──
-const listEl = document.getElementById("list");
-const footerEl = document.getElementById("footer");
-const countEl = document.getElementById("count");
-const inputEl = document.getElementById("snippetInput");
-const addBtn = document.getElementById("addBtn");
-const clearBtn = document.getElementById("clearBtn");
-const rehighlightBtn = document.getElementById("rehighlightBtn");
-const toggleNotesBtn = document.getElementById("toggleNotesBtn");
-const pageDomainEl = document.getElementById("pageDomain");
-const pagePathEl = document.getElementById("pagePath");
-const defaultPaletteEl = document.getElementById("defaultPalette");
-const scopeToggleEl = document.getElementById("scopeToggle");
+const listEl = document.getElementById("list")!;
+const footerEl = document.getElementById("footer")!;
+const countEl = document.getElementById("count")!;
+const inputEl = document.getElementById("snippetInput") as HTMLInputElement;
+const addBtn = document.getElementById("addBtn")!;
+const clearBtn = document.getElementById("clearBtn")!;
+const rehighlightBtn = document.getElementById("rehighlightBtn")!;
+const toggleNotesBtn = document.getElementById("toggleNotesBtn")!;
+const pageDomainEl = document.getElementById("pageDomain")!;
+const pagePathEl = document.getElementById("pagePath")!;
+const defaultPaletteEl = document.getElementById("defaultPalette")!;
+const scopeToggleEl = document.getElementById("scopeToggle")!;
 
-let currentKey = "";      // origin + pathname (page-level key)
-let currentOrigin = "";   // origin only (site-level key)
-let pageSnippets = [];    // snippets scoped to this page
-let siteSnippets = [];    // snippets scoped to this site (origin)
-let defaultColor = DEFAULT_COLOR;
-let defaultScope = DEFAULT_SCOPE;
+let currentKey = "";
+let currentOrigin = "";
+let pageSnippets: Snippet[] = [];
+let siteSnippets: Snippet[] = [];
+let defaultColor: ColorId = DEFAULT_COLOR;
+let defaultScope: Scope = DEFAULT_SCOPE;
 let openPopoverIndex = -1;
 let showNotes = false;
 
 // ── Helpers ──
 
-function timeAgo(ts) {
+function timeAgo(ts: number | undefined): string | null {
   if (!ts) return null;
   const seconds = Math.floor((Date.now() - ts) / 1000);
   if (seconds < 60) return "just now";
@@ -55,40 +43,21 @@ function timeAgo(ts) {
   return `${months}mo ago`;
 }
 
-function colorHex(id) {
-  return COLORS.find((c) => c.id === id)?.hex || COLORS[0].hex;
-}
-
-function urlKey(urlStr) {
-  try {
-    const u = new URL(urlStr);
-    return (u.origin + u.pathname).replace(/\/+$/, "");
-  } catch {
-    return urlStr;
-  }
-}
-
-function originKey(urlStr) {
-  try {
-    return new URL(urlStr).origin;
-  } catch {
-    return urlStr;
-  }
-}
-
-/** Build a merged display list with _scope tags */
-function buildDisplayList() {
-  const list = [];
-  pageSnippets.forEach((s, i) => list.push({ ...s, _scope: "page", _srcIndex: i }));
-  siteSnippets.forEach((s, i) => list.push({ ...s, _scope: "site", _srcIndex: i }));
-  // Sort by createdAt descending (newest first) — fallback to insertion order
+function buildDisplayList(): DisplaySnippet[] {
+  const list: DisplaySnippet[] = [];
+  pageSnippets.forEach((s, i) =>
+    list.push({ ...s, _scope: "page", _srcIndex: i }),
+  );
+  siteSnippets.forEach((s, i) =>
+    list.push({ ...s, _scope: "site", _srcIndex: i }),
+  );
   list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   return list;
 }
 
 // ── Storage ──
 
-function save(callback) {
+function save(callback?: () => void): void {
   chrome.storage.local.get(["pages", "sites"], (result) => {
     const pages = result.pages || {};
     const sites = result.sites || {};
@@ -108,23 +77,15 @@ function save(callback) {
     chrome.storage.local.set({ pages, sites, defaultColor, defaultScope }, () => {
       console.log("[PPH popup] saved sites:", JSON.stringify(sites));
       console.log("[PPH popup] currentOrigin:", currentOrigin);
-      notifyContentScript();
+      sendToActiveTab({ action: "refresh-highlights" });
       if (callback) callback();
     });
   });
 }
 
-function notifyContentScript() {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]?.id) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "refresh-highlights" }).catch(() => {});
-    }
-  });
-}
-
 // ── Default color palette ──
 
-function renderDefaultPalette() {
+function renderDefaultPalette(): void {
   defaultPaletteEl.innerHTML = "";
   COLORS.forEach((c) => {
     const sw = document.createElement("span");
@@ -142,38 +103,38 @@ function renderDefaultPalette() {
 
 // ── Scope toggle ──
 
-function renderScopeToggle() {
-  scopeToggleEl.querySelectorAll(".scope-btn").forEach((btn) => {
+function renderScopeToggle(): void {
+  scopeToggleEl.querySelectorAll<HTMLElement>(".scope-btn").forEach((btn) => {
     btn.classList.toggle("selected", btn.dataset.scope === defaultScope);
   });
 }
 
 scopeToggleEl.addEventListener("click", (e) => {
-  const btn = e.target.closest(".scope-btn");
+  const btn = (e.target as HTMLElement).closest<HTMLElement>(".scope-btn");
   if (!btn) return;
-  defaultScope = btn.dataset.scope;
+  defaultScope = btn.dataset.scope as Scope;
   chrome.storage.local.set({ defaultScope });
   renderScopeToggle();
 });
 
 // ── SVG helpers for scope icons in snippet rows ──
 
-function pageSvg() {
+function pageSvg(): string {
   return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
 }
 
-function globeSvg() {
+function globeSvg(): string {
   return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>';
 }
 
 // ── Snippet list ──
 
-function closeAllPopovers() {
+function closeAllPopovers(): void {
   openPopoverIndex = -1;
   document.querySelectorAll(".color-picker-popover").forEach((el) => el.remove());
 }
 
-function render() {
+function render(): void {
   closeAllPopovers();
   listEl.innerHTML = "";
 
@@ -213,9 +174,13 @@ function render() {
 
     // Scope icon
     const scopeEl = document.createElement("span");
-    scopeEl.className = "scope-icon" + (snippet._scope === "site" ? " site-scope" : "");
+    scopeEl.className =
+      "scope-icon" + (snippet._scope === "site" ? " site-scope" : "");
     scopeEl.innerHTML = snippet._scope === "site" ? globeSvg() : pageSvg();
-    scopeEl.title = snippet._scope === "site" ? "Site-wide — click for page only" : "Page only — click for site-wide";
+    scopeEl.title =
+      snippet._scope === "site"
+        ? "Site-wide \u2014 click for page only"
+        : "Page only \u2014 click for site-wide";
     scopeEl.addEventListener("click", (e) => {
       e.stopPropagation();
       toggleSnippetScope(snippet);
@@ -243,7 +208,7 @@ function render() {
       noteEl.textContent = snippet.note;
       noteEl.addEventListener("click", (e) => {
         e.stopPropagation();
-        showNoteEditor(txtWrapper, noteEl, snippet, snippet.note);
+        showNoteEditor(txtWrapper, noteEl, snippet, snippet.note!);
       });
       txtWrapper.appendChild(noteEl);
     } else {
@@ -275,7 +240,11 @@ function render() {
   countEl.textContent = `${total} snippet${total !== 1 ? "s" : ""}`;
 }
 
-function toggleColorPicker(displayIndex, parentEl, snippet) {
+function toggleColorPicker(
+  displayIndex: number,
+  parentEl: HTMLElement,
+  snippet: DisplaySnippet,
+): void {
   if (openPopoverIndex === displayIndex) {
     closeAllPopovers();
     return;
@@ -293,7 +262,6 @@ function toggleColorPicker(displayIndex, parentEl, snippet) {
     sw.title = c.label;
     sw.addEventListener("click", (e) => {
       e.stopPropagation();
-      // Update the source array
       const srcArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
       srcArr[snippet._srcIndex].color = c.id;
       save(() => render());
@@ -306,15 +274,20 @@ function toggleColorPicker(displayIndex, parentEl, snippet) {
 
 // ── Note editor ──
 
-function showNoteEditor(parent, replaceEl, snippet, currentNote) {
+function showNoteEditor(
+  parent: HTMLElement,
+  replaceEl: HTMLElement,
+  snippet: DisplaySnippet,
+  currentNote: string,
+): void {
   const textarea = document.createElement("textarea");
   textarea.className = "snippet-note-input";
   textarea.value = currentNote;
-  textarea.placeholder = "Type a note…";
+  textarea.placeholder = "Type a note\u2026";
   parent.replaceChild(textarea, replaceEl);
   textarea.focus();
 
-  function saveNote() {
+  function saveNote(): void {
     const note = textarea.value.trim();
     const srcArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
     srcArr[snippet._srcIndex].note = note || undefined;
@@ -333,15 +306,17 @@ function showNoteEditor(parent, replaceEl, snippet, currentNote) {
 
 // ── Actions ──
 
-function addSnippet() {
+function addSnippet(): void {
   const text = inputEl.value.trim();
   if (!text) return;
-  // Check for duplicates in both arrays
-  if (pageSnippets.some((s) => s.text === text) || siteSnippets.some((s) => s.text === text)) {
+  if (
+    pageSnippets.some((s) => s.text === text) ||
+    siteSnippets.some((s) => s.text === text)
+  ) {
     inputEl.select();
     return;
   }
-  const entry = { text, color: defaultColor, createdAt: Date.now() };
+  const entry: Snippet = { text, color: defaultColor, createdAt: Date.now() };
   if (defaultScope === "site") {
     siteSnippets.push(entry);
   } else {
@@ -351,16 +326,15 @@ function addSnippet() {
   save(() => render());
 }
 
-function removeSnippet(snippet) {
+function removeSnippet(snippet: DisplaySnippet): void {
   const srcArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
   srcArr.splice(snippet._srcIndex, 1);
   save(() => render());
 }
 
-function toggleSnippetScope(snippet) {
+function toggleSnippetScope(snippet: DisplaySnippet): void {
   const fromArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
   const toArr = snippet._scope === "site" ? pageSnippets : siteSnippets;
-  // Remove from source, strip internal fields, add to target
   const [moved] = fromArr.splice(snippet._srcIndex, 1);
   toArr.push(moved);
   save(() => render());
@@ -386,24 +360,20 @@ clearBtn.addEventListener("click", () => {
   }
 });
 rehighlightBtn.addEventListener("click", () => {
-  notifyContentScript();
+  sendToActiveTab({ action: "refresh-highlights" });
 });
 toggleNotesBtn.addEventListener("click", () => {
   showNotes = !showNotes;
   toggleNotesBtn.innerHTML = showNotes ? "Show notes &#9679;" : "Show notes &#9675;";
   chrome.storage.local.set({ showNotes });
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]?.id) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "toggle-notes", showNotes }).catch(() => {});
-    }
-  });
+  sendToActiveTab({ action: "toggle-notes", showNotes });
 });
 
 // ── Version ──
 fetch(chrome.runtime.getURL("version.json"))
   .then((r) => r.json())
-  .then((data) => {
-    document.getElementById("version").textContent = "v" + data.version;
+  .then((data: { version: string }) => {
+    document.getElementById("version")!.textContent = "v" + data.version;
   })
   .catch(() => {});
 
@@ -423,30 +393,28 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     pageDomainEl.textContent = currentKey;
   }
 
-  chrome.storage.local.get(["pages", "sites", "defaultColor", "defaultScope", "showNotes"], (result) => {
-    const pages = result.pages || {};
-    const sites = result.sites || {};
+  chrome.storage.local.get(
+    ["pages", "sites", "defaultColor", "defaultScope", "showNotes"],
+    (result) => {
+      const pages = result.pages || {};
+      const sites = result.sites || {};
 
-    // Migrate old format: if snippets are plain strings, convert them
-    const storedPage = pages[currentKey]?.snippets || [];
-    pageSnippets = storedPage.map((s) => {
-      if (typeof s === "string") return { text: s, color: DEFAULT_COLOR };
-      return s;
-    });
+      const storedPage = pages[currentKey]?.snippets || [];
+      pageSnippets = storedPage.map(normalizeSnippet);
 
-    const storedSite = sites[currentOrigin]?.snippets || [];
-    siteSnippets = storedSite.map((s) => {
-      if (typeof s === "string") return { text: s, color: DEFAULT_COLOR };
-      return s;
-    });
+      const storedSite = sites[currentOrigin]?.snippets || [];
+      siteSnippets = storedSite.map(normalizeSnippet);
 
-    defaultColor = result.defaultColor || DEFAULT_COLOR;
-    defaultScope = result.defaultScope || DEFAULT_SCOPE;
-    showNotes = result.showNotes || false;
-    toggleNotesBtn.innerHTML = showNotes ? "Show notes &#9679;" : "Show notes &#9675;";
-    renderDefaultPalette();
-    renderScopeToggle();
-    render();
-    inputEl.focus();
-  });
+      defaultColor = result.defaultColor || DEFAULT_COLOR;
+      defaultScope = result.defaultScope || DEFAULT_SCOPE;
+      showNotes = result.showNotes || false;
+      toggleNotesBtn.innerHTML = showNotes
+        ? "Show notes &#9679;"
+        : "Show notes &#9675;";
+      renderDefaultPalette();
+      renderScopeToggle();
+      render();
+      inputEl.focus();
+    },
+  );
 });
