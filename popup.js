@@ -23,6 +23,7 @@ const inputEl = document.getElementById("snippetInput");
 const addBtn = document.getElementById("addBtn");
 const clearBtn = document.getElementById("clearBtn");
 const rehighlightBtn = document.getElementById("rehighlightBtn");
+const toggleNotesBtn = document.getElementById("toggleNotesBtn");
 const pageUrlEl = document.getElementById("pageUrl");
 const defaultPaletteEl = document.getElementById("defaultPalette");
 
@@ -30,6 +31,7 @@ let currentKey = "";
 let snippets = [];        // Array of { text: string, color: string (color id) }
 let defaultColor = DEFAULT_COLOR;
 let openPopoverIndex = -1; // which snippet has its color picker open
+let showNotes = false;
 
 // ── Helpers ──
 
@@ -289,6 +291,16 @@ clearBtn.addEventListener("click", () => {
 rehighlightBtn.addEventListener("click", () => {
   notifyContentScript();
 });
+toggleNotesBtn.addEventListener("click", () => {
+  showNotes = !showNotes;
+  toggleNotesBtn.innerHTML = showNotes ? "Show notes &#9679;" : "Show notes &#9675;";
+  chrome.storage.local.set({ showNotes });
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]?.id) {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "toggle-notes", showNotes }).catch(() => {});
+    }
+  });
+});
 
 // ── Init ──
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -298,7 +310,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   currentKey = urlKey(tab.url);
   pageUrlEl.textContent = currentKey;
 
-  chrome.storage.local.get(["pages", "defaultColor"], (result) => {
+  chrome.storage.local.get(["pages", "defaultColor", "showNotes"], (result) => {
     const pages = result.pages || {};
     const stored = pages[currentKey]?.snippets || [];
 
@@ -309,6 +321,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     });
 
     defaultColor = result.defaultColor || DEFAULT_COLOR;
+    showNotes = result.showNotes || false;
+    toggleNotesBtn.innerHTML = showNotes ? "Show notes &#9679;" : "Show notes &#9675;";
     renderDefaultPalette();
     render();
     inputEl.focus();

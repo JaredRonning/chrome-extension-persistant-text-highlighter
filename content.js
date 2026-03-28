@@ -12,7 +12,7 @@ function escapeRegExp(str) {
  * Walk text nodes inside `root` and wrap matches with <mark> tags.
  * colorId is the color identifier stored per snippet (e.g. "yellow", "blue").
  */
-function highlightText(root, text, colorId) {
+function highlightText(root, text, colorId, note) {
   if (!text) return 0;
 
   const regex = new RegExp(escapeRegExp(text), "gi");
@@ -51,6 +51,7 @@ function highlightText(root, text, colorId) {
       const mark = document.createElement("mark");
       mark.className = "pph-highlight";
       mark.setAttribute("data-color", colorId);
+      if (note) mark.setAttribute("data-note", note);
       mark.textContent = match[0];
       frag.appendChild(mark);
       lastIndex = regex.lastIndex;
@@ -94,7 +95,7 @@ function highlightSubtree(root) {
     if (typeof snippet === "string") {
       highlightText(root, snippet, "yellow");
     } else {
-      highlightText(root, snippet.text, snippet.color || "yellow");
+      highlightText(root, snippet.text, snippet.color || "yellow", snippet.note);
     }
   });
 }
@@ -125,6 +126,12 @@ function startObserver() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
+function applyNotesState() {
+  chrome.storage.local.get(["showNotes"], (result) => {
+    document.body.classList.toggle("pph-show-notes", result.showNotes || false);
+  });
+}
+
 function run() {
   const key = urlKey(window.location.href);
 
@@ -142,6 +149,7 @@ function run() {
 
     cachedSnippets = entry.snippets;
     highlightSubtree(document.body);
+    applyNotesState();
     startObserver();
   });
 }
@@ -153,5 +161,7 @@ run();
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === "refresh-highlights") {
     run();
+  } else if (msg.action === "toggle-notes") {
+    document.body.classList.toggle("pph-show-notes", msg.showNotes);
   }
 });
