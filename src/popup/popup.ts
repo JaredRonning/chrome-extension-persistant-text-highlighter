@@ -42,6 +42,38 @@ let defaultScope: Scope = DEFAULT_SCOPE;
 let defaultStyles: HighlightStyle[] = [];
 let openPopoverIndex = -1;
 let showNotes = false;
+let dragSrcIndex: number | null = null;
+let autoScrollRAF: number | null = null;
+let lastDragClientY = 0;
+const SCROLL_ZONE = 40;
+const MAX_SCROLL_SPEED = 8;
+
+function autoScrollTick(): void {
+  const rect = listEl.getBoundingClientRect();
+  const distFromTop = lastDragClientY - rect.top;
+  const distFromBottom = rect.bottom - lastDragClientY;
+
+  let speed = 0;
+  if (distFromTop < SCROLL_ZONE && distFromTop >= 0) {
+    speed = -MAX_SCROLL_SPEED * (1 - distFromTop / SCROLL_ZONE);
+  } else if (distFromBottom < SCROLL_ZONE && distFromBottom >= 0) {
+    speed = MAX_SCROLL_SPEED * (1 - distFromBottom / SCROLL_ZONE);
+  }
+
+  if (speed !== 0) {
+    listEl.scrollTop += speed;
+    autoScrollRAF = requestAnimationFrame(autoScrollTick);
+  } else {
+    autoScrollRAF = null;
+  }
+}
+
+function stopAutoScroll(): void {
+  if (autoScrollRAF !== null) {
+    cancelAnimationFrame(autoScrollRAF);
+    autoScrollRAF = null;
+  }
+}
 
 // ── Helpers ──
 
@@ -67,7 +99,12 @@ function buildDisplayList(): DisplaySnippet[] {
   siteSnippets.forEach((s, i) =>
     list.push({ ...s, _scope: "site", _srcIndex: i }),
   );
-  list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const hasSortIndex = list.some((s) => s.sortIndex !== undefined);
+  if (hasSortIndex) {
+    list.sort((a, b) => (a.sortIndex ?? Infinity) - (b.sortIndex ?? Infinity));
+  } else {
+    list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }
   return list;
 }
 
@@ -197,6 +234,44 @@ function render(): void {
   displayList.forEach((snippet, i) => {
     const row = document.createElement("div");
     row.className = "snippet";
+    row.draggable = true;
+    row.dataset.displayIndex = String(i);
+
+    row.addEventListener("dragstart", (e) => {
+      dragSrcIndex = i;
+      row.classList.add("dragging");
+      e.dataTransfer!.effectAllowed = "move";
+    });
+    row.addEventListener("dragend", () => {
+      stopAutoScroll();
+      dragSrcIndex = null;
+      row.classList.remove("dragging");
+      listEl.querySelectorAll(".snippet").forEach((el) =>
+        el.classList.remove("drag-over"),
+      );
+    });
+    row.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = "move";
+      listEl.querySelectorAll(".snippet").forEach((el) =>
+        el.classList.remove("drag-over"),
+      );
+      if (dragSrcIndex !== null && dragSrcIndex !== i) {
+        row.classList.add("drag-over");
+      }
+    });
+    row.addEventListener("drop", (e) => {
+      e.preventDefault();
+      if (dragSrcIndex === null || dragSrcIndex === i) return;
+      reorderSnippets(dragSrcIndex, i, displayList);
+      dragSrcIndex = null;
+    });
+
+    // Drag handle
+    const handle = document.createElement("span");
+    handle.className = "drag-handle";
+    handle.innerHTML = "&#8942;";
+    handle.title = "Drag to reorder";
 
     // Dot wrapper (holds dot + popover)
     const dotWrapper = document.createElement("div");
@@ -289,6 +364,7 @@ function render(): void {
     btn.title = "Remove snippet";
     btn.addEventListener("click", () => removeSnippet(snippet));
 
+    row.appendChild(handle);
     row.appendChild(dotWrapper);
     row.appendChild(styleWrapper);
     row.appendChild(scopeEl);
@@ -411,6 +487,25 @@ function toggleStylePicker(
   parentEl.appendChild(popover);
 }
 
+function reorderSnippets(
+  fromDisplayIdx: number,
+  toDisplayIdx: number,
+  displayList: DisplaySnippet[],
+): void {
+  // Reorder the display list
+  const reordered = [...displayList];
+  const [moved] = reordered.splice(fromDisplayIdx, 1);
+  reordered.splice(toDisplayIdx, 0, moved);
+
+  // Assign sortIndex to all snippets based on new order
+  reordered.forEach((item, newIdx) => {
+    const srcArr = item._scope === "site" ? siteSnippets : pageSnippets;
+    srcArr[item._srcIndex].sortIndex = newIdx;
+  });
+
+  save(() => render());
+}
+
 // ── Note editor ──
 
 function showNoteEditor(
@@ -490,6 +585,13 @@ document.addEventListener("click", () => {
 });
 
 // ── Event Listeners ──
+listEl.addEventListener("dragover", (e) => {
+  lastDragClientY = e.clientY;
+  if (autoScrollRAF === null) {
+    autoScrollRAF = requestAnimationFrame(autoScrollTick);
+  }
+});
+
 addBtn.addEventListener("click", addSnippet);
 inputEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addSnippet();

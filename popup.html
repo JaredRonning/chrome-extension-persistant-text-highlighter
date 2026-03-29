@@ -211,6 +211,25 @@
     animation: fadeIn 0.2s ease;
   }
   .snippet:last-child { border-bottom: none; }
+  .snippet.dragging { opacity: 0.4; }
+  .snippet.drag-over {
+    border-top: 2px solid var(--accent);
+    padding-top: 8px;
+  }
+
+  .drag-handle {
+    flex-shrink: 0;
+    cursor: grab;
+    color: var(--text-dim);
+    opacity: 0.3;
+    font-size: 14px;
+    line-height: 1;
+    user-select: none;
+    margin-top: 1px;
+    transition: opacity 0.15s;
+  }
+  .drag-handle:hover { opacity: 0.8; }
+  .drag-handle:active { cursor: grabbing; }
 
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-4px); }

@@ -22,6 +22,7 @@ export interface Snippet {
   createdAt?: number;
   note?: string;
   styles?: HighlightStyle[];
+  sortIndex?: number;
 }
 
 export type StoredSnippet = Snippet | string;
