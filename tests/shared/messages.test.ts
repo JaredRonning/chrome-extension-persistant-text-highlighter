@@ -25,11 +25,10 @@ describe("sendToActiveTab", () => {
   });
 
   it("does not send message when no active tab", () => {
-    vi.mocked(chrome.tabs.query).mockImplementationOnce(
-      (_q: unknown, cb: (tabs: { id?: number }[]) => void) => {
-        cb([]);
-      },
-    );
+    // @ts-expect-error -- simplified mock for test
+    vi.mocked(chrome.tabs.query).mockImplementationOnce((_q: unknown, cb: Function) => {
+      cb([]);
+    });
 
     sendToActiveTab({ action: "refresh-highlights" });
 
@@ -37,11 +36,10 @@ describe("sendToActiveTab", () => {
   });
 
   it("does not send message when tab has no id", () => {
-    vi.mocked(chrome.tabs.query).mockImplementationOnce(
-      (_q: unknown, cb: (tabs: { id?: number }[]) => void) => {
-        cb([{ id: undefined }]);
-      },
-    );
+    // @ts-expect-error -- simplified mock for test
+    vi.mocked(chrome.tabs.query).mockImplementationOnce((_q: unknown, cb: Function) => {
+      cb([{ id: undefined }]);
+    });
 
     sendToActiveTab({ action: "refresh-highlights" });
 

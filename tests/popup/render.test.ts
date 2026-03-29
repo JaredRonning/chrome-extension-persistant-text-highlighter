@@ -215,22 +215,20 @@ describe("empty state rendering", () => {
 });
 
 describe("footer count text", () => {
+  function countText(total: number): string {
+    return `${total} snippet${total !== 1 ? "s" : ""}`;
+  }
+
   it('shows "1 snippet" for single snippet', () => {
-    const total = 1;
-    const text = `${total} snippet${total !== 1 ? "s" : ""}`;
-    expect(text).toBe("1 snippet");
+    expect(countText(1)).toBe("1 snippet");
   });
 
   it('shows "5 snippets" for multiple snippets', () => {
-    const total = 5;
-    const text = `${total} snippet${total !== 1 ? "s" : ""}`;
-    expect(text).toBe("5 snippets");
+    expect(countText(5)).toBe("5 snippets");
   });
 
   it('shows "0 snippets" for zero', () => {
-    const total = 0;
-    const text = `${total} snippet${total !== 1 ? "s" : ""}`;
-    expect(text).toBe("0 snippets");
+    expect(countText(0)).toBe("0 snippets");
   });
 });
 
