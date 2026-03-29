@@ -1,5 +1,6 @@
 import {
   ColorId,
+  HighlightStyle,
   Snippet,
   DisplaySnippet,
   Scope,
@@ -23,6 +24,14 @@ const pageDomainEl = document.getElementById("pageDomain")!;
 const pagePathEl = document.getElementById("pagePath")!;
 const defaultPaletteEl = document.getElementById("defaultPalette")!;
 const scopeToggleEl = document.getElementById("scopeToggle")!;
+const defaultStylesEl = document.getElementById("defaultStyles")!;
+
+const STYLES: { id: HighlightStyle; label: string; display: string }[] = [
+  { id: "bold", label: "Bold", display: "B" },
+  { id: "underline", label: "Underline", display: "U" },
+  { id: "strikethrough", label: "Strikethrough", display: "S" },
+  { id: "border", label: "Border", display: "\u25a1" },
+];
 
 let currentKey = "";
 let currentOrigin = "";
@@ -30,6 +39,7 @@ let pageSnippets: Snippet[] = [];
 let siteSnippets: Snippet[] = [];
 let defaultColor: ColorId = DEFAULT_COLOR;
 let defaultScope: Scope = DEFAULT_SCOPE;
+let defaultStyles: HighlightStyle[] = [];
 let openPopoverIndex = -1;
 let showNotes = false;
 
@@ -80,7 +90,7 @@ function save(callback?: () => void): void {
       sites[currentOrigin] = { snippets: siteSnippets };
     }
 
-    chrome.storage.local.set({ pages, sites, defaultColor, defaultScope }, () => {
+    chrome.storage.local.set({ pages, sites, defaultColor, defaultScope, defaultStyles }, () => {
       console.log("[PPH popup] saved sites:", JSON.stringify(sites));
       console.log("[PPH popup] currentOrigin:", currentOrigin);
       sendToActiveTab({ action: "refresh-highlights" });
@@ -104,6 +114,31 @@ function renderDefaultPalette(): void {
       renderDefaultPalette();
     });
     defaultPaletteEl.appendChild(sw);
+  });
+}
+
+// ── Default styles ──
+
+function renderDefaultStyles(): void {
+  defaultStylesEl.innerHTML = "";
+  defaultStylesEl.style.display = "flex";
+  defaultStylesEl.style.gap = "4px";
+  STYLES.forEach((s) => {
+    const btn = document.createElement("button");
+    btn.className = "style-btn" + (defaultStyles.includes(s.id) ? " active" : "");
+    btn.textContent = s.display;
+    btn.title = s.label;
+    if (s.id === "bold") btn.style.fontWeight = "800";
+    if (s.id === "underline") btn.style.textDecoration = "underline";
+    if (s.id === "strikethrough") btn.style.textDecoration = "line-through";
+    btn.addEventListener("click", () => {
+      const idx = defaultStyles.indexOf(s.id);
+      if (idx >= 0) defaultStyles.splice(idx, 1);
+      else defaultStyles.push(s.id);
+      chrome.storage.local.set({ defaultStyles });
+      renderDefaultStyles();
+    });
+    defaultStylesEl.appendChild(btn);
   });
 }
 
@@ -137,7 +172,7 @@ function globeSvg(): string {
 
 function closeAllPopovers(): void {
   openPopoverIndex = -1;
-  document.querySelectorAll(".color-picker-popover").forEach((el) => el.remove());
+  document.querySelectorAll(".color-picker-popover, .style-picker-popover").forEach((el) => el.remove());
 }
 
 function render(): void {
@@ -177,6 +212,20 @@ function render(): void {
     });
 
     dotWrapper.appendChild(dot);
+
+    // Style button
+    const styleWrapper = document.createElement("div");
+    styleWrapper.className = "dot-wrapper";
+
+    const styleIcon = document.createElement("span");
+    styleIcon.className = "style-dot" + ((snippet.styles?.length) ? " has-styles" : "");
+    styleIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>';
+    styleIcon.title = "Change style";
+    styleIcon.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleStylePicker(i, styleWrapper, snippet);
+    });
+    styleWrapper.appendChild(styleIcon);
 
     // Scope icon
     const scopeEl = document.createElement("span");
@@ -241,6 +290,7 @@ function render(): void {
     btn.addEventListener("click", () => removeSnippet(snippet));
 
     row.appendChild(dotWrapper);
+    row.appendChild(styleWrapper);
     row.appendChild(scopeEl);
     row.appendChild(txtWrapper);
     row.appendChild(btn);
@@ -264,12 +314,10 @@ function updateMatchIndicators(): void {
     const tabId = tabs[0]?.id;
     console.log("[PPH popup] updateMatchIndicators, tabId:", tabId, "texts:", texts);
     if (tabId === undefined) return;
-    chrome.tabs.sendMessage(
-      tabId,
-      { action: "count-matches" as const, texts },
-      (counts: CountMatchesResponse) => {
-        console.log("[PPH popup] counts response:", counts, "lastError:", chrome.runtime.lastError?.message);
-        if (chrome.runtime.lastError || !counts) return;
+    chrome.tabs
+      .sendMessage(tabId, { action: "count-matches" as const, texts })
+      .then((counts: CountMatchesResponse) => {
+        if (!counts) return;
         document
           .querySelectorAll<HTMLSpanElement>(".match-count")
           .forEach((el) => {
@@ -282,8 +330,8 @@ function updateMatchIndicators(): void {
               el.classList.remove("found");
             }
           });
-      },
-    );
+      })
+      .catch(() => {});
   });
 }
 
@@ -314,6 +362,50 @@ function toggleColorPicker(
       save(() => render());
     });
     popover.appendChild(sw);
+  });
+
+  parentEl.appendChild(popover);
+}
+
+function toggleStylePicker(
+  displayIndex: number,
+  parentEl: HTMLElement,
+  snippet: DisplaySnippet,
+): void {
+  // Use negative index to distinguish from color picker
+  const styleKey = -(displayIndex + 1);
+  if (openPopoverIndex === styleKey) {
+    closeAllPopovers();
+    return;
+  }
+  closeAllPopovers();
+  openPopoverIndex = styleKey;
+
+  const popover = document.createElement("div");
+  popover.className = "style-picker-popover";
+
+  const currentStyles = snippet.styles || [];
+
+  STYLES.forEach((s) => {
+    const btn = document.createElement("button");
+    btn.className = "style-btn" + (currentStyles.includes(s.id) ? " active" : "");
+    btn.textContent = s.display;
+    btn.title = s.label;
+    if (s.id === "bold") btn.style.fontWeight = "800";
+    if (s.id === "underline") btn.style.textDecoration = "underline";
+    if (s.id === "strikethrough") btn.style.textDecoration = "line-through";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const srcArr = snippet._scope === "site" ? siteSnippets : pageSnippets;
+      const target = srcArr[snippet._srcIndex];
+      const styles = target.styles || [];
+      const idx = styles.indexOf(s.id);
+      if (idx >= 0) styles.splice(idx, 1);
+      else styles.push(s.id);
+      target.styles = styles.length > 0 ? styles : undefined;
+      save(() => render());
+    });
+    popover.appendChild(btn);
   });
 
   parentEl.appendChild(popover);
@@ -363,7 +455,12 @@ function addSnippet(): void {
     inputEl.select();
     return;
   }
-  const entry: Snippet = { text, color: defaultColor, createdAt: Date.now() };
+  const entry: Snippet = {
+    text,
+    color: defaultColor,
+    createdAt: Date.now(),
+    ...(defaultStyles.length > 0 ? { styles: [...defaultStyles] } : {}),
+  };
   if (defaultScope === "site") {
     siteSnippets.push(entry);
   } else {
@@ -441,7 +538,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   }
 
   chrome.storage.local.get(
-    ["pages", "sites", "defaultColor", "defaultScope", "showNotes"],
+    ["pages", "sites", "defaultColor", "defaultScope", "showNotes", "defaultStyles"],
     (result) => {
       const pages = result.pages || {};
       const sites = result.sites || {};
@@ -454,11 +551,13 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 
       defaultColor = result.defaultColor || DEFAULT_COLOR;
       defaultScope = result.defaultScope || DEFAULT_SCOPE;
+      defaultStyles = result.defaultStyles || [];
       showNotes = result.showNotes || false;
       toggleNotesBtn.innerHTML = showNotes
         ? "Show notes &#9679;"
         : "Show notes &#9675;";
       renderDefaultPalette();
+      renderDefaultStyles();
       renderScopeToggle();
       render();
       inputEl.focus();

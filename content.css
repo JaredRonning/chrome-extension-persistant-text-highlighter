@@ -17,6 +17,13 @@
 .pph-highlight[data-color="teal"]   { background-color: #80cbc4; }
 .pph-highlight[data-color="amber"]  { background-color: #ffcc80; }
 
+/* Highlight styles */
+.pph-highlight.pph-underline { text-decoration: underline; }
+.pph-highlight.pph-bold { font-weight: bold; }
+.pph-highlight.pph-border { outline: 1.5px solid rgba(0,0,0,0.5); outline-offset: 1px; }
+.pph-highlight.pph-strikethrough { text-decoration: line-through; }
+.pph-highlight.pph-underline.pph-strikethrough { text-decoration: underline line-through; }
+
 /* Note labels — embedded inside mark elements, toggled by CSS */
 .pph-note-label {
   display: none;

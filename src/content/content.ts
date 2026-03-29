@@ -1,5 +1,6 @@
 import {
   ColorId,
+  HighlightStyle,
   StoredSnippet,
   ExtensionMessage,
   CountMatchesResponse,
@@ -15,6 +16,7 @@ function highlightText(
   text: string,
   colorId: ColorId,
   note?: string,
+  styles?: HighlightStyle[],
 ): number {
   if (!text) return 0;
 
@@ -62,6 +64,9 @@ function highlightText(
       }
       const mark = document.createElement("mark");
       mark.className = "pph-highlight";
+      if (styles) {
+        for (const s of styles) mark.classList.add(`pph-${s}`);
+      }
       mark.setAttribute("data-color", colorId);
       mark.appendChild(document.createTextNode(match[0]));
       if (note) {
@@ -109,7 +114,7 @@ function highlightSubtree(root: Node): void {
     if (typeof snippet === "string") {
       highlightText(root, snippet, "yellow");
     } else {
-      highlightText(root, snippet.text, snippet.color || "yellow", snippet.note);
+      highlightText(root, snippet.text, snippet.color || "yellow", snippet.note, snippet.styles);
     }
   });
 }

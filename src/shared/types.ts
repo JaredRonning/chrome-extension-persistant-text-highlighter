@@ -14,11 +14,14 @@ export interface ColorEntry {
   label: string;
 }
 
+export type HighlightStyle = "underline" | "bold" | "border" | "strikethrough";
+
 export interface Snippet {
   text: string;
   color: ColorId;
   createdAt?: number;
   note?: string;
+  styles?: HighlightStyle[];
 }
 
 export type StoredSnippet = Snippet | string;
