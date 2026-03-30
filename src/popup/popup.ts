@@ -4,7 +4,6 @@ import {
   Snippet,
   DisplaySnippet,
   Scope,
-  CountMatchesResponse,
 } from "../shared/types";
 import { COLORS, DEFAULT_COLOR, colorHex } from "../shared/colors";
 import { DEFAULT_SCOPE, normalizeSnippet } from "../shared/storage";
@@ -388,23 +387,55 @@ function updateMatchIndicators(): void {
 
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tabId = tabs[0]?.id;
-    console.log("[PPH popup] updateMatchIndicators, tabId:", tabId, "texts:", texts);
     if (tabId === undefined) return;
-    chrome.tabs
-      .sendMessage(tabId, { action: "count-matches" as const, texts })
-      .then((counts: CountMatchesResponse) => {
+
+    chrome.scripting
+      .executeScript({
+        target: { tabId },
+        func: ((snippetTexts: string[]) => {
+          function esc(str: string) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          }
+          const counts: Record<string, number> = {};
+          for (const text of snippetTexts) {
+            const regex = new RegExp(esc(text), "gi");
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_TEXT,
+              {
+                acceptNode(node: Node) {
+                  const tag = (node as Text).parentElement?.tagName;
+                  if (
+                    ["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT"].includes(
+                      tag ?? "",
+                    )
+                  ) {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                  return NodeFilter.FILTER_ACCEPT;
+                },
+              },
+            );
+            let count = 0;
+            while (walker.nextNode()) {
+              const m = walker.currentNode.nodeValue?.match(regex);
+              if (m) count += m.length;
+            }
+            counts[text] = count;
+          }
+          return counts;
+        }) as unknown as () => void,
+        args: [texts],
+      })
+      .then((results) => {
+        const counts = results[0]?.result as Record<string, number> | undefined;
         if (!counts) return;
         document
           .querySelectorAll<HTMLSpanElement>(".match-count")
           .forEach((el) => {
             const count = counts[el.dataset.text ?? ""] || 0;
-            if (count > 0) {
-              el.textContent = `*${count}`;
-              el.classList.add("found");
-            } else {
-              el.textContent = "*0";
-              el.classList.remove("found");
-            }
+            el.textContent = count > 0 ? `*${count}` : "*0";
+            el.classList.toggle("found", count > 0);
           });
       })
       .catch(() => {});

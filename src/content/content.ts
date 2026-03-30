@@ -3,7 +3,6 @@ import {
   HighlightStyle,
   StoredSnippet,
   ExtensionMessage,
-  CountMatchesResponse,
 } from "../shared/types";
 import { urlKey, originKey } from "../shared/url";
 
@@ -191,43 +190,11 @@ run();
 
 // Listen for messages from the popup to re-run highlights after changes
 chrome.runtime.onMessage.addListener(
-  (
-    msg: ExtensionMessage,
-    _sender: chrome.runtime.MessageSender,
-    sendResponse: (response: CountMatchesResponse) => void,
-  ): boolean | undefined => {
+  (msg: ExtensionMessage): undefined => {
     if (msg.action === "refresh-highlights") {
       run();
     } else if (msg.action === "toggle-notes") {
       document.body.classList.toggle("pph-show-notes", msg.showNotes);
-    } else if (msg.action === "count-matches") {
-      const counts: CountMatchesResponse = {};
-      for (const text of msg.texts) {
-        const regex = new RegExp(escapeRegExp(text), "gi");
-        const walker = document.createTreeWalker(
-          document.body,
-          NodeFilter.SHOW_TEXT,
-          {
-            acceptNode(node: Node) {
-              const tag = (node as Text).parentElement?.tagName;
-              if (
-                ["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT"].includes(tag ?? "")
-              ) {
-                return NodeFilter.FILTER_REJECT;
-              }
-              return NodeFilter.FILTER_ACCEPT;
-            },
-          },
-        );
-        let count = 0;
-        while (walker.nextNode()) {
-          const m = walker.currentNode.nodeValue?.match(regex);
-          if (m) count += m.length;
-        }
-        counts[text] = count;
-      }
-      sendResponse(counts);
-      return true;
     }
     return undefined;
   },

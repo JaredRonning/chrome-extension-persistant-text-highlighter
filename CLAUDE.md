@@ -29,3 +29,4 @@ Chrome Manifest V3 extension ("Persistent Page Highlighter") that lets users sav
 - **Watch**: `npm run watch` — rebuilds on file changes.
 - **Type check**: `npm run typecheck` — runs `tsc --noEmit` for type checking only.
 - **Test in Chrome**: Load the extension directory as an unpacked extension in `chrome://extensions` with Developer Mode enabled. After code changes, run `npm run build`, then click the reload button on the extension card (content script changes also require refreshing the target page).
+- **Important**: `dist/` is gitignored and can become stale. Always run `npm run build` after modifying source files in `src/` to keep `dist/` in sync.
