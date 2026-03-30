@@ -24,6 +24,9 @@ const pagePathEl = document.getElementById("pagePath")!;
 const defaultPaletteEl = document.getElementById("defaultPalette")!;
 const scopeToggleEl = document.getElementById("scopeToggle")!;
 const defaultStylesEl = document.getElementById("defaultStyles")!;
+const siteNotesSection = document.getElementById("siteNotesSection")!;
+const siteNotesInput = document.getElementById("siteNotesInput") as HTMLTextAreaElement;
+const siteNotesToggle = document.getElementById("siteNotesToggle")!;
 
 const STYLES: { id: HighlightStyle; label: string; display: string }[] = [
   { id: "bold", label: "Bold", display: "B" },
@@ -40,6 +43,7 @@ let defaultColor: ColorId = DEFAULT_COLOR;
 let defaultScope: Scope = DEFAULT_SCOPE;
 let defaultStyles: HighlightStyle[] = [];
 let openPopoverIndex = -1;
+let siteNote = "";
 let showNotes = false;
 let dragSrcIndex: number | null = null;
 let autoScrollRAF: number | null = null;
@@ -569,6 +573,28 @@ function showNoteEditor(
   textarea.addEventListener("click", (e) => e.stopPropagation());
 }
 
+// ── Site notes ──
+
+function saveSiteNote(): void {
+  const text = siteNotesInput.value.trim();
+  siteNote = text;
+  chrome.storage.local.get(["siteNotes"], (result) => {
+    const siteNotes = result.siteNotes || {};
+    if (text) {
+      siteNotes[currentOrigin] = text;
+    } else {
+      delete siteNotes[currentOrigin];
+    }
+    chrome.storage.local.set({ siteNotes });
+  });
+}
+
+siteNotesInput.addEventListener("blur", saveSiteNote);
+
+siteNotesToggle.addEventListener("click", () => {
+  siteNotesSection.classList.toggle("collapsed");
+});
+
 // ── Actions ──
 
 function addSnippet(): void {
@@ -671,7 +697,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   }
 
   chrome.storage.local.get(
-    ["pages", "sites", "defaultColor", "defaultScope", "showNotes", "defaultStyles"],
+    ["pages", "sites", "siteNotes", "defaultColor", "defaultScope", "showNotes", "defaultStyles"],
     (result) => {
       const pages = result.pages || {};
       const sites = result.sites || {};
@@ -685,6 +711,9 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       defaultColor = result.defaultColor || DEFAULT_COLOR;
       defaultScope = result.defaultScope || DEFAULT_SCOPE;
       defaultStyles = result.defaultStyles || [];
+      const storedSiteNotes = result.siteNotes || {};
+      siteNote = storedSiteNotes[currentOrigin] || "";
+      siteNotesInput.value = siteNote;
       showNotes = result.showNotes || false;
       toggleNotesBtn.innerHTML = showNotes
         ? "Show notes &#9679;"

@@ -66,6 +66,56 @@
     margin-top: 2px;
   }
 
+  /* ── Site Notes ── */
+  .site-notes {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .site-notes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .site-notes-header .label {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .site-notes-toggle {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 10px;
+    padding: 2px 4px;
+    transition: color 0.15s, transform 0.2s;
+  }
+  .site-notes-toggle:hover { color: var(--text); }
+  .site-notes.collapsed .site-notes-toggle {
+    transform: rotate(-90deg);
+  }
+  .site-notes.collapsed .site-notes-input {
+    display: none;
+  }
+  .site-notes-input {
+    display: block;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: inherit;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 36px;
+    max-height: 120px;
+    outline: none;
+  }
+  .site-notes-input::placeholder { color: var(--text-dim); }
+  .site-notes-input:focus { border-color: var(--accent); }
+
   /* ── Default Color Row ── */
   .default-color-row {
     display: flex;
@@ -482,6 +532,14 @@
     <span class="url" id="pagePath"></span>
   </div>
   <span class="version" id="version"></span>
+</div>
+
+<div class="site-notes" id="siteNotesSection">
+  <div class="site-notes-header">
+    <span class="label">Site notes</span>
+    <button class="site-notes-toggle" id="siteNotesToggle" title="Toggle site notes">&#9660;</button>
+  </div>
+  <textarea class="site-notes-input" id="siteNotesInput" placeholder="Add notes for this site…" rows="2"></textarea>
 </div>
 
 <div class="default-color-row">

@@ -36,6 +36,7 @@ export type Scope = "page" | "site";
 export interface StorageSchema {
   pages: Record<string, PageEntry>;
   sites: Record<string, PageEntry>;
+  siteNotes: Record<string, string>;
   defaultColor: ColorId;
   defaultScope: Scope;
   showNotes: boolean;
