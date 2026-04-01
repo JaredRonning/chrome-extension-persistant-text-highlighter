@@ -620,10 +620,15 @@ function addSnippet(): void {
     inputEl.select();
     return;
   }
+  // Bump sortIndex on all existing snippets so the new one lands at the top
+  for (const s of pageSnippets) s.sortIndex = (s.sortIndex ?? 0) + 1;
+  for (const s of siteSnippets) s.sortIndex = (s.sortIndex ?? 0) + 1;
+
   const entry: Snippet = {
     text,
     color: defaultColor,
     createdAt: Date.now(),
+    sortIndex: 0,
     ...(defaultStyles.length > 0 ? { styles: [...defaultStyles] } : {}),
   };
   if (defaultScope === "site") {
