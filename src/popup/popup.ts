@@ -25,6 +25,7 @@ const defaultPaletteEl = document.getElementById("defaultPalette")!;
 const scopeToggleEl = document.getElementById("scopeToggle")!;
 const defaultStylesEl = document.getElementById("defaultStyles")!;
 const siteNotesSection = document.getElementById("siteNotesSection")!;
+const siteNotesAdd = document.getElementById("siteNotesAdd")!;
 const siteNotesInput = document.getElementById("siteNotesInput") as HTMLTextAreaElement;
 const siteNotesToggle = document.getElementById("siteNotesToggle")!;
 
@@ -161,8 +162,6 @@ function renderDefaultPalette(): void {
 
 function renderDefaultStyles(): void {
   defaultStylesEl.innerHTML = "";
-  defaultStylesEl.style.display = "flex";
-  defaultStylesEl.style.gap = "4px";
   STYLES.forEach((s) => {
     const btn = document.createElement("button");
     btn.className = "style-btn" + (defaultStyles.includes(s.id) ? " active" : "");
@@ -575,9 +574,18 @@ function showNoteEditor(
 
 // ── Site notes ──
 
+function updateSiteNotesState(): void {
+  if (siteNote) {
+    siteNotesSection.classList.remove("empty");
+  } else {
+    siteNotesSection.classList.add("empty");
+  }
+}
+
 function saveSiteNote(): void {
   const text = siteNotesInput.value.trim();
   siteNote = text;
+  updateSiteNotesState();
   chrome.storage.local.get(["siteNotes"], (result) => {
     const siteNotes = result.siteNotes || {};
     if (text) {
@@ -590,6 +598,11 @@ function saveSiteNote(): void {
 }
 
 siteNotesInput.addEventListener("blur", saveSiteNote);
+
+siteNotesAdd.addEventListener("click", () => {
+  siteNotesSection.classList.remove("empty");
+  siteNotesInput.focus();
+});
 
 siteNotesToggle.addEventListener("click", () => {
   siteNotesSection.classList.toggle("collapsed");
@@ -714,6 +727,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const storedSiteNotes = result.siteNotes || {};
       siteNote = storedSiteNotes[currentOrigin] || "";
       siteNotesInput.value = siteNote;
+      updateSiteNotesState();
       showNotes = result.showNotes || false;
       toggleNotesBtn.innerHTML = showNotes
         ? "Show notes &#9679;"

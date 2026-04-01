@@ -68,8 +68,30 @@
 
   /* ── Site Notes ── */
   .site-notes {
-    padding: 10px 18px;
     border-bottom: 1px solid var(--border);
+  }
+  .site-notes.empty {
+    padding: 0;
+    border-bottom: none;
+  }
+  .site-notes-add {
+    display: inline-block;
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+    padding: 6px 18px;
+  }
+  .site-notes-add:hover {
+    opacity: 1;
+    color: var(--accent);
+  }
+  .site-notes.empty .site-notes-add { display: inline-block; }
+  .site-notes.empty .site-notes-body { display: none; }
+  .site-notes:not(.empty) .site-notes-add { display: none; }
+  .site-notes-body {
+    padding: 8px 18px 10px;
   }
   .site-notes-header {
     display: flex;
@@ -91,12 +113,8 @@
     transition: color 0.15s, transform 0.2s;
   }
   .site-notes-toggle:hover { color: var(--text); }
-  .site-notes.collapsed .site-notes-toggle {
-    transform: rotate(-90deg);
-  }
-  .site-notes.collapsed .site-notes-input {
-    display: none;
-  }
+  .site-notes.collapsed .site-notes-input { display: none; }
+  .site-notes.collapsed .site-notes-toggle { transform: rotate(-90deg); }
   .site-notes-input {
     display: block;
     width: 100%;
@@ -116,27 +134,27 @@
   .site-notes-input::placeholder { color: var(--text-dim); }
   .site-notes-input:focus { border-color: var(--accent); }
 
-  /* ── Default Color Row ── */
-  .default-color-row {
+  /* ── Defaults Row (color + style + scope) ── */
+  .defaults-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 18px;
+    gap: 8px;
+    padding: 8px 18px;
     border-bottom: 1px solid var(--border);
   }
-  .default-color-row .label {
-    font-size: 12px;
-    color: var(--text-dim);
-    white-space: nowrap;
+  .defaults-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--border);
+    flex-shrink: 0;
   }
   .palette {
     display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
+    gap: 3px;
   }
   .palette .swatch {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     border: 2px solid transparent;
     cursor: pointer;
@@ -152,7 +170,7 @@
     content: "";
     position: absolute;
     top: 50%; left: 50%;
-    width: 6px; height: 6px;
+    width: 5px; height: 5px;
     background: rgba(0,0,0,0.45);
     border-radius: 50%;
     transform: translate(-50%, -50%);
@@ -161,18 +179,18 @@
   /* ── Scope Toggle ── */
   .scope-toggle {
     display: flex;
-    gap: 6px;
+    gap: 4px;
   }
   .scope-btn {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 3px;
     background: none;
     border: 1px solid var(--border);
     color: var(--text-dim);
     border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 11px;
+    padding: 3px 7px;
+    font-size: 10px;
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s, background 0.15s;
   }
@@ -185,6 +203,7 @@
     border-color: var(--accent);
     background: var(--accent-soft);
   }
+  .scope-btn svg { width: 11px; height: 11px; }
 
   /* Scope icon in snippet row */
   .scope-icon {
@@ -471,20 +490,12 @@
   .style-dot:hover { opacity: 1; color: var(--accent); }
   .style-dot.has-styles { opacity: 0.8; color: var(--text); }
 
-  /* Default style palette */
-  .default-styles-row {
+  /* Default style buttons in defaults row */
+  .defaults-styles {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 18px;
-    border-bottom: 1px solid var(--border);
+    gap: 3px;
   }
-  .default-styles-row .label {
-    font-size: 12px;
-    color: var(--text-dim);
-    white-space: nowrap;
-  }
-  .default-styles-row .style-btn { width: auto; padding: 2px 8px; }
+  .defaults-styles .style-btn { width: 22px; height: 20px; font-size: 10px; }
 
   /* ── Footer ── */
   .footer {
@@ -534,36 +545,32 @@
   <span class="version" id="version"></span>
 </div>
 
-<div class="site-notes" id="siteNotesSection">
-  <div class="site-notes-header">
-    <span class="label">Site notes</span>
-    <button class="site-notes-toggle" id="siteNotesToggle" title="Toggle site notes">&#9660;</button>
+<div class="site-notes empty" id="siteNotesSection">
+  <span class="site-notes-add" id="siteNotesAdd">+ Site note</span>
+  <div class="site-notes-body">
+    <div class="site-notes-header">
+      <span class="label">Site notes</span>
+      <button class="site-notes-toggle" id="siteNotesToggle" title="Toggle site notes">&#9660;</button>
+    </div>
+    <textarea class="site-notes-input" id="siteNotesInput" placeholder="Add notes for this site…" rows="2"></textarea>
   </div>
-  <textarea class="site-notes-input" id="siteNotesInput" placeholder="Add notes for this site…" rows="2"></textarea>
 </div>
 
-<div class="default-color-row">
-  <span class="label">Default color:</span>
+<div class="defaults-row">
   <div class="palette" id="defaultPalette"></div>
-</div>
-
-<div class="default-styles-row">
-  <span class="label">Style:</span>
-  <div id="defaultStyles"></div>
-</div>
-
-<div class="default-color-row">
-  <span class="label">Scope:</span>
+  <span class="defaults-divider"></span>
+  <div class="defaults-styles" id="defaultStyles"></div>
+  <span class="defaults-divider"></span>
   <div class="scope-toggle" id="scopeToggle">
     <button class="scope-btn selected" data-scope="page" title="This page only">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
       </svg>
       Page
     </button>
     <button class="scope-btn" data-scope="site" title="All pages on this site">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/>
         <line x1="2" y1="12" x2="22" y2="12"/>
         <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
