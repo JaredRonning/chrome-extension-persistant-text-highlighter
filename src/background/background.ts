@@ -60,33 +60,44 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       const color: ColorId = result.defaultColor || DEFAULT_COLOR;
       const scope: Scope = result.defaultScope || DEFAULT_SCOPE;
 
+      // Bump sortIndex on all existing snippets (page + site) so the new one
+      // lands at the top of the popup's display list, matching popup add behavior
+      const pageEntry = pages[key];
+      const siteEntry = sites[origin];
+      for (const s of pageEntry?.snippets || []) {
+        if (typeof s !== "string") s.sortIndex = (s.sortIndex ?? 0) + 1;
+      }
+      for (const s of siteEntry?.snippets || []) {
+        if (typeof s !== "string") s.sortIndex = (s.sortIndex ?? 0) + 1;
+      }
+
       if (scope === "site") {
-        const entry = sites[origin] || { snippets: [] };
+        const entry = siteEntry || { snippets: [] };
         if (
           entry.snippets.some(
             (s) => (typeof s === "string" ? s : s.text) === text,
           )
         )
           return;
-        entry.snippets.push({ text, color, createdAt: Date.now() });
+        entry.snippets.push({ text, color, createdAt: Date.now(), sortIndex: 0 });
         sites[origin] = entry;
-        chrome.storage.local.set({ sites }, () => {
+        chrome.storage.local.set({ pages, sites }, () => {
           chrome.tabs
             .sendMessage(tabId, { action: "refresh-highlights" })
             .catch(() => {});
           updateBadge(tabId, tab.url!);
         });
       } else {
-        const entry = pages[key] || { snippets: [] };
+        const entry = pageEntry || { snippets: [] };
         if (
           entry.snippets.some(
             (s) => (typeof s === "string" ? s : s.text) === text,
           )
         )
           return;
-        entry.snippets.push({ text, color, createdAt: Date.now() });
+        entry.snippets.push({ text, color, createdAt: Date.now(), sortIndex: 0 });
         pages[key] = entry;
-        chrome.storage.local.set({ pages }, () => {
+        chrome.storage.local.set({ pages, sites }, () => {
           chrome.tabs
             .sendMessage(tabId, { action: "refresh-highlights" })
             .catch(() => {});

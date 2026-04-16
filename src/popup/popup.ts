@@ -47,6 +47,7 @@ let openPopoverIndex = -1;
 let siteNote = "";
 let showNotes = false;
 let dragSrcIndex: number | null = null;
+let matchCounts: Record<string, number> = {};
 let autoScrollRAF: number | null = null;
 let lastDragClientY = 0;
 const SCROLL_ZONE = 40;
@@ -104,11 +105,15 @@ function buildDisplayList(): DisplaySnippet[] {
     list.push({ ...s, _scope: "site", _srcIndex: i }),
   );
   const hasSortIndex = list.some((s) => s.sortIndex !== undefined);
-  if (hasSortIndex) {
-    list.sort((a, b) => (a.sortIndex ?? Infinity) - (b.sortIndex ?? Infinity));
-  } else {
-    list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }
+  list.sort((a, b) => {
+    // Primary: snippets with matches on the page come first
+    const aTier = (matchCounts[a.text] || 0) > 0 ? 0 : 1;
+    const bTier = (matchCounts[b.text] || 0) > 0 ? 0 : 1;
+    if (aTier !== bTier) return aTier - bTier;
+    // Secondary: existing sort (drag-reorder index, else date added desc)
+    if (hasSortIndex) return (a.sortIndex ?? Infinity) - (b.sortIndex ?? Infinity);
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
   return list;
 }
 
@@ -433,6 +438,24 @@ function updateMatchIndicators(): void {
       .then((results) => {
         const counts = results[0]?.result as Record<string, number> | undefined;
         if (!counts) return;
+
+        // Detect whether any snippet's matched-vs-not tier changed; if so,
+        // re-render so buildDisplayList can re-sort into the two tiers.
+        let tierChanged = false;
+        for (const text of texts) {
+          const oldTier = (matchCounts[text] || 0) > 0;
+          const newTier = (counts[text] || 0) > 0;
+          if (oldTier !== newTier) {
+            tierChanged = true;
+            break;
+          }
+        }
+        matchCounts = counts;
+        if (tierChanged) {
+          render();
+          return;
+        }
+
         document
           .querySelectorAll<HTMLSpanElement>(".match-count")
           .forEach((el) => {
